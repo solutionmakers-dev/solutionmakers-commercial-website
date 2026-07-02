@@ -6,7 +6,7 @@
 
 **Architecture:** Vanilla three.js scene driven by a gesture→state-machine→camera-rig pipeline. Content definitions in one module drive 3D stations, DOM panels, HUD, a11y mirror, and deep links. DOM overlay for text/UI; WebGL for the world.
 
-**Tech Stack:** Vite 6, TypeScript (strict), three.js (latest), vitest, @fontsource (Space Grotesk, Inter), potrace (dev-only, logo tracing), Playwright (dev verification). Package manager: pnpm.
+**Tech Stack:** Vite 8 (controller decision 2026-07-02: plan originally said "Vite 6"; npm latest is 8.x and the spec pins no version — recorded, not a drive-by upgrade), TypeScript (strict), three.js (latest), vitest, @fontsource (Space Grotesk, Inter), potrace (dev-only, logo tracing), Playwright (dev verification). Package manager: pnpm.
 
 ## Global Constraints
 
