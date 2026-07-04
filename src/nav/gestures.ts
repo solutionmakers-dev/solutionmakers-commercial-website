@@ -51,6 +51,16 @@ export class GestureController {
   private lastY = 0
   private dragging = false
   private history: PointSample[] = []
+  /**
+   * True when this tapdrag was resumed on a remaining finger after a pinch
+   * ended (see `endPointer`'s pinch branch). That finger's "start" is reset
+   * to the moment of resume, so a quick, roughly-stationary lift of it would
+   * otherwise misclassify as a fresh tap — it isn't one, it's just the tail
+   * end of the pinch gesture. While this flag is set, tap classification is
+   * suppressed; the resumed pointer can still become a real drag if it moves
+   * past the threshold.
+   */
+  private suppressTap = false
 
   // --- two-pointer pinch state ---
   private pinchIds: [number, number] | null = null
@@ -83,7 +93,7 @@ export class GestureController {
     for (const cb of this.listeners) cb(e)
   }
 
-  private beginTapDrag(id: number, x: number, y: number, t: number): void {
+  private beginTapDrag(id: number, x: number, y: number, t: number, suppressTap = false): void {
     this.mode = 'tapdrag'
     this.activeId = id
     this.startX = x
@@ -93,6 +103,7 @@ export class GestureController {
     this.startT = t
     this.dragging = false
     this.history = [{ t, x, y }]
+    this.suppressTap = suppressTap
   }
 
   private readonly onPointerDown = (e: PointerEvent): void => {
@@ -145,6 +156,11 @@ export class GestureController {
         this.dragging = true
       }
       if (this.dragging) {
+        // `lastX`/`lastY` still hold the down point until the very first
+        // dragmove below, so this first delta is measured from the down
+        // point rather than from wherever we crossed TAP_MOVE_PX. That
+        // folds any sub-threshold wiggle (up to ~10px) into the first
+        // dragmove instead of discarding it — intentional, no motion lost.
         const dx = e.clientX - this.lastX
         const dy = e.clientY - this.lastY
         this.lastX = e.clientX
@@ -188,8 +204,19 @@ export class GestureController {
       const duration = e.timeStamp - this.startT
       const totalDist = Math.hypot(e.clientX - this.startX, e.clientY - this.startY)
 
-      if (!cancelled && !this.dragging && totalDist < TAP_MOVE_PX && duration < TAP_MAX_MS) {
+      if (cancelled) {
+        // The browser stole this gesture mid-motion (e.g. a system nav
+        // swipe). Whatever velocity we'd computed is not a real release —
+        // emitting it would fling the camera on input we didn't finish
+        // classifying. Always report a dead stop instead.
+        this.emit({ type: 'dragend', vx: 0, vy: 0 })
+      } else if (!this.dragging && !this.suppressTap && totalDist < TAP_MOVE_PX && duration < TAP_MAX_MS) {
         this.emit({ type: 'tap', x: e.clientX, y: e.clientY })
+      } else if (this.suppressTap && !this.dragging) {
+        // Resumed from a pinch (see the pinch branch below) and lifted
+        // again before crossing the drag threshold: this finger never did
+        // anything on its own — not a tap (it's not a fresh gesture) and
+        // not a drag (it never moved). Emit nothing.
       } else {
         const { vx, vy } = this.computeVelocity(e.timeStamp, e.clientX, e.clientY)
         this.emit({ type: 'dragend', vx, vy })
@@ -198,6 +225,7 @@ export class GestureController {
       this.mode = 'idle'
       this.activeId = null
       this.dragging = false
+      this.suppressTap = false
       this.history = []
       return
     }
@@ -209,11 +237,14 @@ export class GestureController {
 
       // If another pointer is still down (the other pinch finger, or a
       // leftover 3rd+ finger), resume tap/drag tracking on it fresh —
-      // its "start" is now, not whenever it originally went down.
+      // its "start" is now, not whenever it originally went down. It's
+      // drag-only, though: tap classification is suppressed (see
+      // `suppressTap`) so a quick stationary lift right after the pinch
+      // doesn't register as a phantom tap.
       const remainingId = [...this.points.keys()][0]
       if (remainingId !== undefined) {
         const p = this.points.get(remainingId)
-        if (p) this.beginTapDrag(remainingId, p.x, p.y, e.timeStamp)
+        if (p) this.beginTapDrag(remainingId, p.x, p.y, e.timeStamp, true)
       }
       return
     }

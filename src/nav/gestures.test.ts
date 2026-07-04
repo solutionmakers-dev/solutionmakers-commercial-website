@@ -175,6 +175,42 @@ describe('GestureController — pinch', () => {
 
     expect(events.length).toBe(countBefore) // 3rd pointer's move produces no event
   })
+
+  it('does not emit a phantom tap when a pinch ends by sequential finger-lift (quick, roughly stationary)', () => {
+    const ctrl = new GestureController(el)
+    const events = record(ctrl)
+
+    el.dispatchEvent(down(1, 0, 0, 0))
+    el.dispatchEvent(down(2, 100, 0, 10)) // pinch starts, initial dist 100
+    el.dispatchEvent(move(2, 110, 0, 20)) // scale 1.1
+    el.dispatchEvent(up(1, 0, 0, 30)) // first finger lifts -> pinchend, resumes tapdrag on id2 (drag-only)
+    el.dispatchEvent(up(2, 110, 0, 40)) // quick, stationary lift of the resumed finger
+
+    expect(events).toEqual([
+      { type: 'pinch', scale: 1.1 },
+      { type: 'pinchend', scale: 1.1 },
+    ])
+    expect(events.some((e) => e.type === 'tap')).toBe(false)
+  })
+
+  it('lets the finger remaining after a pinch still drag if it moves past the threshold', () => {
+    const ctrl = new GestureController(el)
+    const events = record(ctrl)
+
+    el.dispatchEvent(down(1, 0, 0, 0))
+    el.dispatchEvent(down(2, 100, 0, 10)) // pinch starts, initial dist 100
+    el.dispatchEvent(up(2, 100, 0, 20)) // second finger lifts -> pinchend, resumes tapdrag on id1
+    el.dispatchEvent(move(1, 30, 0, 50)) // resumed finger moves 30px -> crosses drag threshold
+    el.dispatchEvent(up(1, 30, 0, 80))
+
+    expect(events[0]).toEqual({ type: 'pinchend', scale: 1 })
+    const moves = events.filter((e): e is Extract<GestureEvent, { type: 'dragmove' }> => e.type === 'dragmove')
+    expect(moves.length).toBeGreaterThan(0)
+    expect(moves[0]).toEqual({ type: 'dragmove', dx: 30, dy: 0 })
+    const last = events.at(-1)
+    expect(last?.type).toBe('dragend')
+    expect(events.some((e) => e.type === 'tap')).toBe(false)
+  })
 })
 
 describe('GestureController — pointercancel', () => {
@@ -186,6 +222,19 @@ describe('GestureController — pointercancel', () => {
     el.dispatchEvent(cancel(1, 11, 10, 20))
 
     expect(events.some((e) => e.type === 'tap')).toBe(false)
+  })
+
+  it('emits a dead-stop dragend (vx:0, vy:0) instead of a momentum fling when a fast drag is cancelled', () => {
+    const ctrl = new GestureController(el)
+    const events = record(ctrl)
+
+    el.dispatchEvent(down(1, 0, 0, 0))
+    el.dispatchEvent(move(1, 20, 0, 10)) // crosses drag threshold
+    el.dispatchEvent(move(1, 100, 0, 20)) // fast move — would compute a large real velocity
+    el.dispatchEvent(cancel(1, 120, 0, 25)) // browser steals the gesture mid-motion
+
+    const end = events.find((e) => e.type === 'dragend')
+    expect(end).toEqual({ type: 'dragend', vx: 0, vy: 0 })
   })
 })
 
