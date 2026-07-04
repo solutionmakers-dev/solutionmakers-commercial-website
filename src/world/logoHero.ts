@@ -75,7 +75,7 @@ const BEVEL = 0.02
 const MARK_COLOR = '#e8eaee'
 const MARK_METALNESS = 1
 const MARK_ROUGHNESS = 0.18
-const MARK_ENV_INTENSITY = 1.4
+const MARK_ENV_INTENSITY = 0.7
 
 // Slow yaw sway, ±6°.
 const SWAY_DEG = 6
@@ -97,7 +97,13 @@ function shapes2DBounds(shapes: THREE.Shape[]): THREE.Box2 {
   return box
 }
 
-/** A soft radial blue→transparent sprite texture for the additive glow. */
+/**
+ * A soft radial sprite texture for the additive glow. The alpha falls all the
+ * way to zero by ~55% of the plane radius (and 0 at the edge), so the glow is a
+ * contained halo hugging the bulb rather than a full-frame wash. The material's
+ * `color` (brand blue) tints this white gradient, so the additive contribution
+ * reads unmistakably blue against the dark navy void.
+ */
 function createGlowTexture(): THREE.Texture {
   const size = 256
   const canvas = document.createElement('canvas')
@@ -105,7 +111,8 @@ function createGlowTexture(): THREE.Texture {
   const ctx = canvas.getContext('2d')!
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
   g.addColorStop(0, 'rgba(255,255,255,1)')
-  g.addColorStop(0.35, 'rgba(255,255,255,0.55)')
+  g.addColorStop(0.25, 'rgba(255,255,255,0.45)')
+  g.addColorStop(0.55, 'rgba(255,255,255,0.1)')
   g.addColorStop(1, 'rgba(255,255,255,0)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, size, size)

@@ -49,6 +49,14 @@ export function createRenderer(canvas: HTMLCanvasElement): Ctx {
     powerPreference: 'high-performance',
   })
 
+  // ACES filmic tone mapping with a slightly-under-1 exposure is what pulls the
+  // frame down to the presskit's near-black navy void: it rolls off the metal's
+  // specular highlights (so the chrome shows dark facets + bright streaks rather
+  // than blowing to flat white) and tames the additive glow/dust so they read as
+  // contained accents instead of a full-frame wash.
+  renderer.toneMapping = THREE.ACESFilmicToneMapping
+  renderer.toneMappingExposure = 0.75
+
   const scene = new THREE.Scene()
   const camera = new THREE.PerspectiveCamera(FOV, 1, NEAR, FAR)
 

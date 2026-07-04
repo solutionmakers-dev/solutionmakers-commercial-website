@@ -60,9 +60,38 @@ const DUST_DRIFT_AMPLITUDE = 0.55
 const DUST_DRIFT_FREQ_X = 0.17
 const DUST_DRIFT_FREQ_Y = 0.13
 const DUST_DRIFT_FREQ_Z = 0.11
+// Keep dust out of a small sphere around the path start (where the camera
+// begins): points that spawn right on top of the lens render as huge, in-focus
+// blobs that dominate the frame. Excluding them keeps the field reading as a
+// distant haze of fine motes.
+const DUST_MIN_START_DIST = 2
 
 const UP = new THREE.Vector3(0, 1, 0)
 const WORLD_X = new THREE.Vector3(1, 0, 0)
+
+/**
+ * A small round radial-gradient sprite so each point renders as a soft mote
+ * rather than the hard square a bare `PointsMaterial` draws. Guarded for the
+ * headless (node) test environment, where there is no `document`/canvas — the
+ * field still constructs there, just without the map (never rendered in tests).
+ */
+function createDustTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null
+  const size = 64
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+  g.addColorStop(0, 'rgba(255,255,255,1)')
+  g.addColorStop(0.5, 'rgba(255,255,255,0.35)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size, size)
+  const tex = new THREE.CanvasTexture(canvas)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
 
 interface DustField {
   points: THREE.Points
@@ -82,20 +111,27 @@ function createDust(tier: Tier): DustField {
   const colors = new Float32Array(count * 3)
   const white = new THREE.Color('#ffffff')
   const blue = new THREE.Color(DUST_BLUE_HEX)
+  const start = curve.getPointAt(0)
 
   for (let i = 0; i < count; i++) {
-    const t = Math.random()
-    const centre = curve.getPointAt(t)
-    const tangent = curve.getTangentAt(t)
+    // Rejection-sample a spot in the tube, retrying until it clears the small
+    // exclusion sphere around the path start (bounded so it can never spin).
+    let point = new THREE.Vector3()
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const t = Math.random()
+      const centre = curve.getPointAt(t)
+      const tangent = curve.getTangentAt(t)
 
-    let right = new THREE.Vector3().crossVectors(tangent, UP)
-    if (right.lengthSq() < 1e-8) right = new THREE.Vector3().crossVectors(tangent, WORLD_X)
-    right.normalize()
-    const upv = new THREE.Vector3().crossVectors(right, tangent).normalize()
+      let right = new THREE.Vector3().crossVectors(tangent, UP)
+      if (right.lengthSq() < 1e-8) right = new THREE.Vector3().crossVectors(tangent, WORLD_X)
+      right.normalize()
+      const upv = new THREE.Vector3().crossVectors(right, tangent).normalize()
 
-    const r = DUST_TUBE_RADIUS * Math.sqrt(Math.random()) // sqrt for a uniform disk, not a centre-heavy one
-    const theta = Math.random() * Math.PI * 2
-    const point = centre.addScaledVector(right, r * Math.cos(theta)).addScaledVector(upv, r * Math.sin(theta))
+      const r = DUST_TUBE_RADIUS * Math.sqrt(Math.random()) // sqrt for a uniform disk, not a centre-heavy one
+      const theta = Math.random() * Math.PI * 2
+      point = centre.addScaledVector(right, r * Math.cos(theta)).addScaledVector(upv, r * Math.sin(theta))
+      if (point.distanceTo(start) >= DUST_MIN_START_DIST) break
+    }
 
     base[i * 3] = point.x
     base[i * 3 + 1] = point.y
@@ -116,6 +152,7 @@ function createDust(tier: Tier): DustField {
 
   const material = new THREE.PointsMaterial({
     size: DUST_SIZE,
+    map: createDustTexture(),
     vertexColors: true,
     transparent: true,
     opacity: DUST_OPACITY,
@@ -131,8 +168,14 @@ function createDust(tier: Tier): DustField {
 const CONE_HEIGHT = 14
 const CONE_TOP_RADIUS = 0.4
 const CONE_BOTTOM_RADIUS = 5.5
-const CONE_OUTER_OPACITY = 0.07
-const CONE_INNER_OPACITY = 0.1
+// The cone's wide bottom (radius 5.5) fills the whole frame at the mark's depth,
+// and it's drawn DoubleSide × two nested cones — so every screen ray crosses ~4
+// additive-white surfaces. At the old 0.07/0.1 that accumulated into a flat grey
+// wash that lifted the corners off the near-black navy void. Kept very low so the
+// void stays dark and the cone reads only as a faint shaft brightening over the
+// mark (subtle > showy, per the presskit's single soft light shaft).
+const CONE_OUTER_OPACITY = 0.035
+const CONE_INNER_OPACITY = 0.05
 // The inner cone is a tighter, brighter core nested inside the soft outer
 // wash — the brief pins the outer cone's radii exactly but only the inner
 // cone's opacity, so this scale is a deliberate "faked volumetric" choice.

@@ -119,9 +119,11 @@ describe('Environment — construction (no WebGL required)', () => {
     const geoms = meshes.map((m) => m.geometry as THREE.CylinderGeometry)
     const mats = meshes.map((m) => m.material as THREE.MeshBasicMaterial)
 
-    // outer cone: radiusTop 0.4 -> radiusBottom 5.5, height 14, opacity 0.07
-    const outerIdx = mats.findIndex((m) => Math.abs(m.opacity - 0.07) < 1e-6)
-    const innerIdx = mats.findIndex((m) => Math.abs(m.opacity - 0.1) < 1e-6)
+    // outer cone: radiusTop 0.4 -> radiusBottom 5.5, height 14, opacity 0.035.
+    // (Opacities kept very low so the frame-filling cone reads as a faint shaft
+    // rather than washing the near-black void to grey — see the art-direction pass.)
+    const outerIdx = mats.findIndex((m) => Math.abs(m.opacity - 0.035) < 1e-6)
+    const innerIdx = mats.findIndex((m) => Math.abs(m.opacity - 0.05) < 1e-6)
     expect(outerIdx).toBeGreaterThanOrEqual(0)
     expect(innerIdx).toBeGreaterThanOrEqual(0)
 
