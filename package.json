@@ -21,6 +21,7 @@
   "devDependencies": {
     "@fontsource/inter": "^5.2.8",
     "@fontsource/space-grotesk": "^5.2.10",
+    "@playwright/test": "^1.61.1",
     "@types/three": "^0.185.0",
     "jsdom": "^29.1.1",
     "potrace": "^2.1.8",
