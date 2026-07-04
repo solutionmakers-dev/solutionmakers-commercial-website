@@ -320,6 +320,8 @@ export class Constellation {
    * this works with any caller-built raycaster.
    */
   nodeAt(raycaster: THREE.Raycaster): string | null {
+    // Raycaster ignores visible=false; hit-testing must be inert while hidden.
+    if (!this.group.visible) return null
     // Tests (and pre-first-render taps) raycast before any render pass has
     // refreshed world matrices — bring them up to date first.
     this.group.updateMatrixWorld(true)

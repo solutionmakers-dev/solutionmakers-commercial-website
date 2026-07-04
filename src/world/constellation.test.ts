@@ -98,6 +98,7 @@ describe('Constellation — construction (node env, no document)', () => {
 describe('Constellation — nodeAt hit testing', () => {
   it('returns the station id for a ray aimed straight down at each node', () => {
     const { con, anchors } = makeWorld()
+    con.setVisible(true)
     for (const def of STATIONS) {
       const a = anchors.get(def.id)!
       expect(con.nodeAt(rayDown(a.x, a.z))).toBe(def.id)
@@ -106,17 +107,31 @@ describe('Constellation — nodeAt hit testing', () => {
 
   it('returns null for a ray aimed far off the path', () => {
     const { con } = makeWorld()
+    con.setVisible(true)
     expect(con.nodeAt(rayDown(500, 500))).toBeNull()
     expect(con.nodeAt(rayDown(0, 400))).toBeNull()
   })
 
   it('hit-tests through the enlarged r=1.2 sphere, not just the visual point', () => {
     const { con, anchors } = makeWorld()
+    con.setVisible(true)
     const a = anchors.get(STATIONS[0]!.id)!
     // 1 unit off-centre still hits (inside r=1.2)...
     expect(con.nodeAt(rayDown(a.x + 1.0, a.z))).toBe(STATIONS[0]!.id)
     // ...well outside r=1.2 (and any neighbour) misses.
     expect(con.nodeAt(rayDown(a.x + 30, a.z))).toBeNull()
+  })
+
+  it('returns null when hidden, even if the ray hits a node; resumes after setVisible(true)', () => {
+    const { con, anchors } = makeWorld()
+    const a = anchors.get(STATIONS[0]!.id)!
+    const ray = rayDown(a.x, a.z)
+    // While hidden (default), nodeAt is inert.
+    expect(con.group.visible).toBe(false)
+    expect(con.nodeAt(ray)).toBeNull()
+    // After setVisible(true), the same ray hits.
+    con.setVisible(true)
+    expect(con.nodeAt(ray)).toBe(STATIONS[0]!.id)
   })
 })
 
