@@ -49,7 +49,9 @@ export class QualityManager {
   constructor(nowFn?: () => number) {
     this.nowFn = nowFn ?? defaultNow
     this.tier = detectInitialTier()
-    this.lastChangeAt = this.nowFn()
+    // Seed in the past so the cooldown never gates the very first tier transition —
+    // cooldown only applies BETWEEN changes, per spec.
+    this.lastChangeAt = this.nowFn() - COOLDOWN_S
   }
 
   sample(dt: number): void {

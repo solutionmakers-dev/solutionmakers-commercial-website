@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { QualityManager, TIERS } from './quality'
+import { describe, it, expect, afterEach, vi } from 'vitest'
+import { QualityManager, TIERS, detectInitialTier } from './quality'
 
 /** Fake wall clock: advances by dt on every fed frame, like a real RAF timestamp would. */
 function makeClock() {
@@ -91,5 +91,51 @@ describe('QualityManager', () => {
     feed(qm, clock, 1 / 30, 90)
 
     expect(seen).toEqual([1, 0])
+  })
+
+  it('does not let the cooldown gate the very first tier transition', () => {
+    // 40fps: slow enough to trip the <45fps rule, but only ~2.25s elapses over
+    // 90 frames — well under the 3s cooldown. The cooldown must not block this
+    // FIRST transition; it only applies between changes.
+    const clock = makeClock()
+    const qm = new QualityManager(clock.now)
+
+    feed(qm, clock, 1 / 40, 89)
+    expect(qm.tier).toBe(2) // not yet 90 consecutive slow frames
+
+    feed(qm, clock, 1 / 40, 1) // frame 90
+    expect(qm.tier).toBe(1) // steps down immediately despite only ~2.25s of clock time
+  })
+})
+
+describe('detectInitialTier', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  const IPHONE_UA =
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1'
+  const DESKTOP_UA =
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
+  it('returns tier 1 for high-DPR (>2.5) mobile devices', () => {
+    vi.stubGlobal('window', { devicePixelRatio: 3 })
+    vi.stubGlobal('navigator', { userAgent: IPHONE_UA })
+
+    expect(detectInitialTier()).toBe(1)
+  })
+
+  it('returns tier 2 for high-DPR (>2.5) desktop devices', () => {
+    vi.stubGlobal('window', { devicePixelRatio: 3 })
+    vi.stubGlobal('navigator', { userAgent: DESKTOP_UA })
+
+    expect(detectInitialTier()).toBe(2)
+  })
+
+  it('returns tier 2 for mobile devices with DPR at or below 2.5', () => {
+    vi.stubGlobal('window', { devicePixelRatio: 2 })
+    vi.stubGlobal('navigator', { userAgent: IPHONE_UA })
+
+    expect(detectInitialTier()).toBe(2)
   })
 })
