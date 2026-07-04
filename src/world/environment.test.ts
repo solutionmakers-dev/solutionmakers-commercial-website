@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import * as THREE from 'three'
 import { Environment } from './environment'
+import { PATH_POINTS } from '../nav/cameraRig'
 
 /** The dust field is the sole THREE.Points child of the group. */
 function findDust(env: Environment): THREE.Points {
@@ -86,9 +87,26 @@ describe('Environment — construction (no WebGL required)', () => {
   it('(b) dust points sit within the tube radius (14) of the path', () => {
     const env = new Environment(2)
     const pos = findDust(env).geometry.getAttribute('position') as THREE.BufferAttribute
-    for (let i = 0; i < pos.count; i += 37) {
+
+    // Build the same curve and sample it densely
+    const curve = new THREE.CatmullRomCurve3(PATH_POINTS)
+    const curvePoints = curve.getPoints(200)
+
+    for (let i = 0; i < pos.count; i++) {
       const p = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i))
+
+      // First verify the point is finite
       expect(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)).toBe(true)
+
+      // Find minimum distance from this dust point to any curve sample point
+      let minDist = Infinity
+      for (const curvePoint of curvePoints) {
+        const dist = p.distanceTo(curvePoint)
+        if (dist < minDist) minDist = dist
+      }
+
+      // Assert minimum distance is within tube radius (14) plus small sampling error slack (0.5)
+      expect(minDist).toBeLessThanOrEqual(14.5)
     }
   })
 
@@ -141,14 +159,16 @@ describe('Environment — applyTier', () => {
 
   it('disposes the old dust geometry when rebuilding (no leak)', () => {
     const env = new Environment(2)
-    const oldGeometry = findDust(env).geometry
+    const oldPoints = findDust(env)
+    const oldGeometry = oldPoints.geometry
     const disposeSpy = vi.spyOn(oldGeometry, 'dispose')
 
     env.applyTier(0)
 
+    // The old geometry's dispose method was called
     expect(disposeSpy).toHaveBeenCalledTimes(1)
-    // the old Points object is no longer a child of the group
-    expect(env.group.children.includes(findDust(env))).toBe(true)
+    // The old Points object is no longer a child of the group
+    expect(env.group.children.includes(oldPoints)).toBe(false)
   })
 
   it('leaves exactly one dust field in the group after repeated tier changes', () => {
