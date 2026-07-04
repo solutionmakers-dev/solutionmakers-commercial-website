@@ -75,6 +75,32 @@ describe('NavState — legal path', () => {
     expect(nav.dive('delta')).toBe(true)
     expect(nav.stationId).toBe('delta')
   })
+
+  it('isolates listener exceptions: one throwing listener does not prevent others from being notified', () => {
+    const nav = new NavState()
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const listenerOne = vi.fn()
+    const listenerTwo = vi.fn(() => {
+      throw new Error('listener two error')
+    })
+    const listenerThree = vi.fn()
+
+    nav.on(listenerOne)
+    nav.on(listenerTwo)
+    nav.on(listenerThree)
+
+    const result = nav.enter()
+
+    expect(result).toBe(true)
+    expect(listenerOne).toHaveBeenCalledTimes(1)
+    expect(listenerOne).toHaveBeenCalledWith(snap('travel', null), snap('arrival', null))
+    expect(listenerThree).toHaveBeenCalledTimes(1)
+    expect(listenerThree).toHaveBeenCalledWith(snap('travel', null), snap('arrival', null))
+    expect(nav.mode).toBe('travel')
+
+    spy.mockRestore()
+  })
 })
 
 describe('NavState — illegal transitions', () => {

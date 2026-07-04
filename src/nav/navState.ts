@@ -77,7 +77,13 @@ export class NavState {
     if (nextStationId !== undefined) this._stationId = nextStationId
 
     const next: NavSnapshot = { mode: this._mode, stationId: this._stationId }
-    for (const cb of this.listeners) cb(next, prev)
+    for (const cb of this.listeners) {
+      try {
+        cb(next, prev)
+      } catch (err) {
+        console.error('[navState] listener error', err)
+      }
+    }
     return true
   }
 }
