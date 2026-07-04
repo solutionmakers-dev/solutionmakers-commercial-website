@@ -4,10 +4,14 @@ import { STATIONS, type StationDef, type Motif } from '../../content/content'
 import { TIERS, type Tier } from '../../core/quality'
 import { MOTIFS, Station, buildStations, type MotifBuild } from './station'
 
-// The three station defs this task implements, keyed by motif.
+// Station defs keyed by motif. Task 10 shipped orbits/grid/swarm; task 11 adds
+// circuit/satellites/contact.
 const ORBITS_DEF = STATIONS.find((s) => s.motif === 'orbits') as StationDef
 const GRID_DEF = STATIONS.find((s) => s.motif === 'grid') as StationDef
 const SWARM_DEF = STATIONS.find((s) => s.motif === 'swarm') as StationDef
+const CIRCUIT_DEF = STATIONS.find((s) => s.motif === 'circuit') as StationDef
+const SATELLITES_DEF = STATIONS.find((s) => s.motif === 'satellites') as StationDef
+const CONTACT_DEF = STATIONS.find((s) => s.motif === 'contact') as StationDef
 
 /** All descendants of `obj` that are instances of `ctor`. */
 // `any[]` (not `never[]`) so TS infers T from generic three.js classes like Mesh/Points.
@@ -31,14 +35,29 @@ function buildGrid(tier: Tier = 2): MotifBuild {
 function buildSwarm(tier: Tier = 2): MotifBuild {
   return MOTIFS.swarm!(SWARM_DEF, tier)
 }
+function buildCircuit(tier: Tier = 2): MotifBuild {
+  return MOTIFS.circuit!(CIRCUIT_DEF, tier)
+}
+function buildSatellites(tier: Tier = 2): MotifBuild {
+  return MOTIFS.satellites!(SATELLITES_DEF, tier)
+}
+function buildContact(tier: Tier = 2): MotifBuild {
+  return MOTIFS.contact!(CONTACT_DEF, tier)
+}
+
+const DEF_BY_NAME: Record<string, StationDef> = {
+  orbits: ORBITS_DEF,
+  grid: GRID_DEF,
+  swarm: SWARM_DEF,
+  circuit: CIRCUIT_DEF,
+  satellites: SATELLITES_DEF,
+  contact: CONTACT_DEF,
+}
 
 describe('MOTIFS registry', () => {
-  it('defines exactly the three task-10 motifs and leaves the rest for task 11', () => {
-    expect(typeof MOTIFS.orbits).toBe('function')
-    expect(typeof MOTIFS.grid).toBe('function')
-    expect(typeof MOTIFS.swarm).toBe('function')
-    const later: Motif[] = ['circuit', 'satellites', 'contact']
-    for (const m of later) expect(MOTIFS[m]).toBeUndefined()
+  it('defines all six station motifs (task 10 + task 11)', () => {
+    const all: Motif[] = ['orbits', 'grid', 'swarm', 'circuit', 'satellites', 'contact']
+    for (const m of all) expect(typeof MOTIFS[m]).toBe('function')
   })
 })
 
@@ -46,6 +65,9 @@ describe.each([
   ['orbits', buildOrbits],
   ['grid', buildGrid],
   ['swarm', buildSwarm],
+  ['circuit', buildCircuit],
+  ['satellites', buildSatellites],
+  ['contact', buildContact],
 ] as const)('%s motif builder', (name, build) => {
   it('returns a Group with children and a core tap-target', () => {
     const m = build()
@@ -53,11 +75,10 @@ describe.each([
     expect(m.group.children.length).toBeGreaterThan(0)
     expect(m.core).toBeInstanceOf(THREE.Object3D)
     // The def used by each build() carries the matching id.
-    const def = name === 'orbits' ? ORBITS_DEF : name === 'grid' ? GRID_DEF : SWARM_DEF
-    expect(m.core.userData.stationId).toBe(def.id)
+    expect(m.core.userData.stationId).toBe(DEF_BY_NAME[name]!.id)
   })
 
-  it('shares the station base: chrome icosahedron core + blue point light', () => {
+  it('shares the station base: dark-chrome icosahedron core + blue point light', () => {
     const m = build()
     const core = m.core as THREE.Mesh
     expect(core.geometry).toBeInstanceOf(THREE.IcosahedronGeometry)
@@ -65,6 +86,10 @@ describe.each([
     const mat = core.material as THREE.MeshStandardMaterial
     expect(mat.metalness).toBeGreaterThanOrEqual(0.85)
     expect(mat.emissive.getHexString()).toBe('3a63c8')
+    // Task 11 core tune: dark chrome with a blue heart — darker base color,
+    // lower roughness, brighter emissive base (0.25 -> 0.45).
+    expect(mat.roughness).toBeCloseTo(0.2)
+    expect(mat.emissiveIntensity).toBeCloseTo(0.45)
 
     const lights = descendants(m.group, THREE.PointLight)
     expect(lights.length).toBe(1)
@@ -153,6 +178,123 @@ describe('swarm motif specifics', () => {
   })
 })
 
+describe('circuit motif specifics', () => {
+  it('wires a wireframe slab device (EdgesGeometry line segments)', () => {
+    const edges = descendants(buildCircuit().group, THREE.LineSegments).filter(
+      (l) => l.geometry instanceof THREE.EdgesGeometry,
+    )
+    expect(edges.length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('runs 12 PCB traces (thin tubes) out from the device edges', () => {
+    const tubes = descendants(buildCircuit().group, THREE.Mesh).filter(
+      (mesh) => mesh.geometry instanceof THREE.TubeGeometry,
+    )
+    expect(tubes.length).toBe(12)
+    expect((tubes[0]!.geometry as THREE.TubeGeometry).parameters.radius).toBeCloseTo(0.008)
+  })
+
+  it('sends 12 pulse sprites (additive planes) travelling the traces', () => {
+    const m = buildCircuit()
+    const pulses = descendants(m.group, THREE.Mesh).filter(
+      (mesh) => mesh.geometry instanceof THREE.PlaneGeometry,
+    )
+    expect(pulses.length).toBe(12)
+    const mat = pulses[0]!.material as THREE.MeshBasicMaterial
+    expect(mat.blending).toBe(THREE.AdditiveBlending)
+    // Pulses ride their trace paths — advancing time moves them without throwing.
+    const before = pulses[0]!.position.clone()
+    for (let i = 0; i < 30; i++) m.update(1 / 60, i / 60, 0.5)
+    expect(pulses[0]!.position.distanceTo(before)).toBeGreaterThan(0)
+  })
+})
+
+describe('satellites motif specifics', () => {
+  it('exposes exactly 4 orbiters carrying satelliteId matching the def ids', () => {
+    const m = buildSatellites()
+    const orbiters: THREE.Object3D[] = []
+    m.group.traverse((o) => {
+      if (o.userData.satelliteId !== undefined) orbiters.push(o)
+    })
+    expect(orbiters.length).toBe(4)
+    const ids = orbiters.map((o) => o.userData.satelliteId as string).sort()
+    const defIds = SATELLITES_DEF.satellites!.map((s) => s.id).sort()
+    expect(ids).toEqual(defIds)
+  })
+
+  it('makes the orbiters r 0.16 emissive-blue spheres on tilted orbit rings', () => {
+    const m = buildSatellites()
+    const orbiters: THREE.Mesh[] = []
+    m.group.traverse((o) => {
+      if (o.userData.satelliteId !== undefined && o instanceof THREE.Mesh) orbiters.push(o)
+    })
+    expect(orbiters.length).toBe(4)
+    for (const o of orbiters) {
+      expect(o.geometry).toBeInstanceOf(THREE.SphereGeometry)
+      expect((o.geometry as THREE.SphereGeometry).parameters.radius).toBeCloseTo(0.16)
+      const mat = o.material as THREE.MeshStandardMaterial
+      expect(mat.emissive.getHexString()).toBe('3a63c8')
+    }
+    // A thin orbit line per orbiter.
+    const lines = descendants(m.group, THREE.Line).filter((l) => !(l instanceof THREE.LineSegments))
+    expect(lines.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('advances the orbiters when updated (they revolve)', () => {
+    const m = buildSatellites()
+    const orbiter = (() => {
+      let hit: THREE.Object3D | undefined
+      m.group.traverse((o) => {
+        if (!hit && o.userData.satelliteId !== undefined) hit = o
+      })
+      return hit!
+    })()
+    const before = orbiter.getWorldPosition(new THREE.Vector3())
+    for (let i = 0; i < 30; i++) m.update(1 / 60, i / 60, 0.5)
+    const after = orbiter.getWorldPosition(new THREE.Vector3())
+    expect(after.distanceTo(before)).toBeGreaterThan(0)
+  })
+})
+
+describe('contact motif specifics', () => {
+  it('has a bright emissive-white beacon core sphere (r 0.3)', () => {
+    const spheres = descendants(buildContact().group, THREE.Mesh).filter(
+      (mesh) =>
+        mesh.geometry instanceof THREE.SphereGeometry &&
+        Math.abs((mesh.geometry as THREE.SphereGeometry).parameters.radius - 0.3) < 1e-6,
+    )
+    expect(spheres.length).toBe(1)
+    const mat = spheres[0]!.material as THREE.MeshStandardMaterial
+    expect(mat.emissive.getHexString()).toBe('ffffff')
+  })
+
+  it('breathes: the r 1.6 icosahedron cage scale changes over elapsed time', () => {
+    const m = buildContact()
+    const cage = descendants(m.group, THREE.Mesh).find(
+      (mesh) =>
+        mesh.geometry instanceof THREE.IcosahedronGeometry &&
+        Math.abs((mesh.geometry as THREE.IcosahedronGeometry).parameters.radius - 1.6) < 1e-6,
+    )!
+    expect(cage).toBeDefined()
+    m.update(0, 0, 0.5)
+    const s0 = cage.scale.x
+    m.update(0, 2, 0.5)
+    const s2 = cage.scale.x
+    expect(s2).not.toBeCloseTo(s0)
+  })
+
+  it('rings the beacon with 80 converging/diverging points', () => {
+    const m = buildContact()
+    const points = descendants(m.group, THREE.Points)[0]!
+    expect(points.geometry.getAttribute('position').count).toBe(80)
+    // The ring pulses in/out — advancing time moves its points without throwing.
+    const attr = points.geometry.getAttribute('position') as THREE.BufferAttribute
+    const x0 = attr.getX(0)
+    for (let i = 0; i < 30; i++) m.update(1 / 60, i / 60, 0.5)
+    expect(attr.getX(0)).not.toBe(x0)
+  })
+})
+
 describe('Station', () => {
   const anchor = new THREE.Vector3(2, 0, -14)
 
@@ -204,8 +346,15 @@ describe('buildStations', () => {
       },
     }
     const stations = buildStations(STATIONS, rig, 2)
-    // Only orbits/grid/swarm are implemented this task.
-    expect(stations.map((s) => s.def.motif).sort()).toEqual(['grid', 'orbits', 'swarm'])
+    // All six motifs are implemented now (task 10 + task 11).
+    expect(stations.map((s) => s.def.motif).sort()).toEqual([
+      'circuit',
+      'contact',
+      'grid',
+      'orbits',
+      'satellites',
+      'swarm',
+    ])
     for (const s of stations) {
       const a = anchors.get(s.def.id)!
       expect(s.group.position.distanceTo(a)).toBeLessThan(1e-6)

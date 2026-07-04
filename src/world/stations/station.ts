@@ -5,6 +5,9 @@ import { PATH_POINTS } from '../../nav/cameraRig'
 import { orbits } from './motifs/orbits'
 import { grid } from './motifs/grid'
 import { swarm } from './motifs/swarm'
+import { circuit } from './motifs/circuit'
+import { satellites } from './motifs/satellites'
+import { contact } from './motifs/contact'
 
 /**
  * Station — one glowing installation beside the travel path. A motif builder
@@ -23,14 +26,17 @@ export interface MotifBuild {
 export type MotifBuilder = (def: StationDef, tier: Tier) => MotifBuild
 
 /**
- * Motif registry. `Partial` because it is filled across tasks: task 10 ships
- * orbits/grid/swarm; task 11 adds circuit/satellites/contact (add the imports
- * and keys here — `buildStations` will pick the new ones up automatically).
+ * Motif registry — complete as of task 11: every `Motif` in content.ts has a
+ * builder, so `buildStations` places all six stations. (`Partial` is kept so a
+ * future content motif can land before its builder without breaking the build.)
  */
 export const MOTIFS: Partial<Record<Motif, MotifBuilder>> = {
   orbits,
   grid,
   swarm,
+  circuit,
+  satellites,
+  contact,
 }
 
 export class Station {

@@ -14,8 +14,15 @@ export const BLUE = '#3A63C8'
 export const WHITE = '#ffffff'
 
 const CORE_RADIUS = 0.35
-const CORE_EMISSIVE_BASE = 0.25
-const CORE_EMISSIVE_FOCUS = 0.25 // added at focus 1 -> 0.25..0.5 (more washes the metal flat)
+// Core reads as dark chrome with a blue heart (not flat pale plastic): a darker
+// base tint + low roughness + dimmed env reflections keep the metal moody with
+// crisp facet contrast, while a brighter emissive floor lets the brand blue
+// glow from within.
+const CORE_COLOR = '#99a3ba'
+const CORE_ROUGHNESS = 0.2
+const CORE_ENV_INTENSITY = 0.55
+const CORE_EMISSIVE_BASE = 0.45
+const CORE_EMISSIVE_FOCUS = 0.4 // added at focus 1 -> 0.45..0.85 (proportional to the brighter base)
 const CORE_SPIN_Y = 0.3
 const CORE_SPIN_X = 0.12
 
@@ -63,9 +70,10 @@ export function buildStationBase(def: StationDef): StationBase {
   const group = new THREE.Group()
 
   const coreMat = new THREE.MeshStandardMaterial({
-    color: new THREE.Color('#dfe4ee'),
+    color: new THREE.Color(CORE_COLOR),
     metalness: 0.9,
-    roughness: 0.25,
+    roughness: CORE_ROUGHNESS,
+    envMapIntensity: CORE_ENV_INTENSITY,
     emissive: new THREE.Color(BLUE),
     emissiveIntensity: CORE_EMISSIVE_BASE,
   })
