@@ -62,13 +62,15 @@ export function parseLogoShapes(svgText: string): THREE.Shape[] {
   // Runtime `data.xml` is the parsed <svg> root element (@types/three types it
   // loosely as XMLDocument); read its viewBox for the plate-size reference.
   const refArea = viewBoxArea(data.xml as unknown as Element, shapesUnfiltered)
-  return shapesUnfiltered.filter((s) => !isBackgroundPlate(s, refArea))
+  const kept = shapesUnfiltered.filter((s) => !isBackgroundPlate(s, refArea))
+  if (kept.length === 0) throw new Error('parseLogoShapes: no mark shapes found in SVG — check the trace')
+  return kept
 }
 
 // --- the chrome mark --------------------------------------------------------
 
 const MARK_HEIGHT = 1.0 // world units, tip-to-tail
-const MARK_POSITION = new THREE.Vector3(0, 0.15, -2) // at the path start, under the cone
+const MARK_POSITION = new THREE.Vector3(0, 0.15, -2) // at the path start, under the cone; Y=0.15 chosen visually (adjudicated)
 const EXTRUDE_DEPTH = 0.28
 const BEVEL = 0.02
 
@@ -102,13 +104,17 @@ function shapes2DBounds(shapes: THREE.Shape[]): THREE.Box2 {
  * way to zero by ~55% of the plane radius (and 0 at the edge), so the glow is a
  * contained halo hugging the bulb rather than a full-frame wash. The material's
  * `color` (brand blue) tints this white gradient, so the additive contribution
- * reads unmistakably blue against the dark navy void.
+ * reads unmistakably blue against the dark navy void. Guarded for the headless
+ * (node) test environment, where there is no `document`/canvas — the hero still
+ * constructs there, just without the glow texture.
  */
-function createGlowTexture(): THREE.Texture {
+function createGlowTexture(): THREE.Texture | null {
+  if (typeof document === 'undefined') return null
   const size = 256
   const canvas = document.createElement('canvas')
   canvas.width = canvas.height = size
-  const ctx = canvas.getContext('2d')!
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return null
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
   g.addColorStop(0, 'rgba(255,255,255,1)')
   g.addColorStop(0.25, 'rgba(255,255,255,0.45)')
@@ -169,7 +175,8 @@ export class LogoHero {
     // negative determinant, keeping the lit front face toward the camera.
     mesh.scale.y = -1
 
-    // Blue glow: additive plane behind the bulb, pulsing opacity.
+    // Blue glow: additive plane behind the bulb, pulsing opacity. Rendered in
+    // the transparent pass with depthTest false, so it draws over/around the mark.
     this.glowMaterial = new THREE.MeshBasicMaterial({
       map: createGlowTexture(),
       color: new THREE.Color(GLOW_BLUE),
@@ -183,7 +190,6 @@ export class LogoHero {
     })
     const glow = new THREE.Mesh(new THREE.PlaneGeometry(GLOW_RADIUS * 2, GLOW_RADIUS * 2), this.glowMaterial)
     glow.position.copy(GLOW_OFFSET)
-    glow.renderOrder = -1 // draw before the mark so it reads as a backdrop bloom
 
     this.group = new THREE.Group()
     this.group.add(mesh, glow)

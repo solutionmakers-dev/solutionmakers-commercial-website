@@ -54,4 +54,11 @@ describe('parseLogoShapes — background-plate filter', () => {
     // The kept shape is the small triangle, well under the viewBox.
     expect(shapeBBoxArea(shapes[0]!) / (100 * 100)).toBeLessThan(0.5)
   })
+
+  it('throws if all shapes are filtered (e.g., SVG with only a full-canvas rect)', () => {
+    const svgOnlyPlate = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+      <rect x="0" y="0" width="100" height="100" fill="#000"/>
+    </svg>`
+    expect(() => parseLogoShapes(svgOnlyPlate)).toThrow('parseLogoShapes: no mark shapes found in SVG — check the trace')
+  })
 })

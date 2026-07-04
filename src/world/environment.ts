@@ -181,7 +181,7 @@ const CONE_INNER_OPACITY = 0.05
 // cone's opacity, so this scale is a deliberate "faked volumetric" choice.
 const CONE_INNER_SCALE = 0.55
 // Path start (PATH_POINTS[0]) is the origin; the hero/logo sits just off it
-// at ~(0, 0.2, -2). The cone's tip (its narrow, radiusTop end) sits at
+// at ~(0, 0.15, -2). The cone's tip (its narrow, radiusTop end) sits at
 // world y ≈ 8, so the shaft flares down and over the hero zone.
 const CONE_TIP_Y = 8
 const CONE_X = 0
