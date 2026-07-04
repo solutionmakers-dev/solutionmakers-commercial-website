@@ -10,7 +10,12 @@ export interface Ctx {
 
 const FOV = 55
 const NEAR = 0.1
-const FAR = 120
+// 220 (raised from 120 for map mode): the constellation overview parks the
+// camera ~50–90 units above the path, so the far end of the curve sits
+// 110–160 away and the enveloping sky sphere reaches out past 170 — at 120
+// both were far-clipped from exactly the map pose. Travel/dive views are
+// unaffected: scene fog fully saturates at 55, well inside either value.
+const FAR = 220
 const MAX_DPR = 2
 
 /** Tracks each ctx's current tier so both the resize handler and applyDpr agree on it. */

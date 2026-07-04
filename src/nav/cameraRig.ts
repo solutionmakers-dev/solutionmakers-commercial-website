@@ -58,6 +58,13 @@ const WARP_MS = 900
 const MAP_FOV = 55 // whole curve framed in this vertical fov
 const MAP_HEIGHT = 50 // map pose height above the path midpoint
 const MAP_BEHIND = 58 // map pose distance behind (+z of) the midpoint
+// The map pose above frames the curve for the VERTICAL fov; on narrow
+// (portrait) viewports the horizontal fov becomes the binding constraint and
+// the constellation's lateral spread (path ±6, anchors ±2.2, node glows and
+// labels beyond that) crops at the frame edges. Below this aspect, `toMap`
+// scales the pose offset up by (MAP_FIT_ASPECT / aspect) so the whole
+// constellation stays in frame; wider viewports keep the canonical pose.
+const MAP_FIT_ASPECT = 0.75
 const PROGRESS_EPS = 0.001 // onProgress fires only when |Δt| exceeds this
 
 const UP = new THREE.Vector3(0, 1, 0)
@@ -310,10 +317,12 @@ export class CameraRig {
     this.beginTween(this.travelPos(this._t), this.travelLook(this._t), DIVE_MS, 'travel', this.travelFov, onDone)
   }
 
-  /** Pull back to the constellation overview: above and behind the path midpoint. */
+  /** Pull back to the constellation overview: above and behind the path
+   *  midpoint — higher/further on portrait viewports (see MAP_FIT_ASPECT). */
   toMap(onDone?: () => void): void {
     const mid = this.curve.getPointAt(0.5)
-    const toPos = mid.clone().add(new THREE.Vector3(0, MAP_HEIGHT, MAP_BEHIND))
+    const fit = Math.max(1, MAP_FIT_ASPECT / Math.max(this.camera.aspect, 1e-6))
+    const toPos = mid.clone().add(new THREE.Vector3(0, MAP_HEIGHT * fit, MAP_BEHIND * fit))
     this.beginTween(toPos, mid, MAP_MS, 'map', MAP_FOV, onDone)
   }
 

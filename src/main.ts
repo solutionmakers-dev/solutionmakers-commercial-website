@@ -11,7 +11,9 @@ import { QualityManager } from './core/quality'
 import { Environment } from './world/environment'
 import { LogoHero } from './world/logoHero'
 import { buildStations } from './world/stations/station'
+import { Constellation } from './world/constellation'
 import { CameraRig } from './nav/cameraRig'
+import { damp } from './nav/damp'
 import { GestureController } from './nav/gestures'
 import { STATIONS } from './content/content'
 import logoSvg from './assets/logo-mark.svg?raw'
@@ -53,6 +55,12 @@ const rig = new CameraRig(camera, STATIONS)
 const stations = buildStations(STATIONS, rig, quality.tier)
 for (const st of stations) scene.add(st.group)
 
+// Constellation map layer — hidden except in map mode (Task 14's pinch-out
+// fades it in; taps on its nodes warp).
+const anchors = new Map(STATIONS.map((s) => [s.id, rig.stationAnchor(s.id)]))
+const constellation = new Constellation(stations, anchors)
+scene.add(constellation.group)
+
 // Focus ramps 0→1 as the camera's path parameter nears a station's t.
 const FOCUS_RANGE_T = 0.06
 
@@ -65,6 +73,22 @@ gestures.on((e) => {
 })
 ;(window as unknown as { __rig?: CameraRig }).__rig = rig
 
+// TEMP until Task 14 wiring: key 'm' toggles map mode (rig pose + constellation
+// fade) so the layer can be verified visually. Task 14 replaces this with the
+// pinch-out gesture and moves fade/current-station ownership into nav.
+let mapOn = false
+let mapFade = 0 // damped toward mapOn; drives the constellation fade
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'm') return
+  mapOn = !mapOn
+  if (mapOn) {
+    constellation.setCurrent(rig.nearestStation().id)
+    rig.toMap()
+  } else {
+    rig.fromMap()
+  }
+})
+
 startLoop((dt, elapsed) => {
   quality.sample(dt)
   rig.update(dt)
@@ -74,5 +98,11 @@ startLoop((dt, elapsed) => {
     st.setFocus(1 - Math.min(Math.abs(rig.t - st.def.t) / FOCUS_RANGE_T, 1))
     st.update(dt, elapsed)
   }
+  // TEMP (Task 14): drive the constellation fade toward the map toggle state.
+  const fadeTarget = mapOn ? 1 : 0
+  mapFade = damp(mapFade, fadeTarget, 5, dt)
+  if (Math.abs(mapFade - fadeTarget) < 0.005) mapFade = fadeTarget
+  constellation.setVisible(mapOn || mapFade > 0, mapFade)
+  constellation.update(dt, elapsed)
   renderer.render(scene, camera)
 })

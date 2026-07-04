@@ -195,6 +195,26 @@ describe('CameraRig — map & warp', () => {
     tick(rig, 60)
     expect(rig.t).toBeCloseTo(before, 3)
   })
+
+  it('toMap keeps the canonical pose on wide viewports and pulls higher/further on portrait', () => {
+    // Wide (aspect 1 ≥ fit threshold): canonical pose, mid + (0, 50, 58).
+    const { rig: wide, camera: wideCam } = makeRig()
+    wide.toMap()
+    tick(wide, 120) // > 700 ms tween
+    const mid = curve.getPointAt(0.5)
+    expect(wideCam.position.y).toBeCloseTo(mid.y + 50, 1)
+    expect(wideCam.position.z).toBeCloseTo(mid.z + 58, 1)
+
+    // Portrait (phone-ish aspect): the horizontal fov is the binding
+    // constraint — the pose scales up so the constellation's lateral spread
+    // still fits in frame.
+    const portraitCam = new THREE.PerspectiveCamera(55, 393 / 852, 0.1, 300)
+    const portrait = new CameraRig(portraitCam, STATIONS)
+    portrait.toMap()
+    tick(portrait, 120)
+    expect(portraitCam.position.y).toBeGreaterThan(wideCam.position.y + 10)
+    expect(portraitCam.position.z).toBeGreaterThan(wideCam.position.z + 10)
+  })
 })
 
 describe('CameraRig — look offset', () => {
