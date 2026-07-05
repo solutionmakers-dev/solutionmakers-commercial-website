@@ -46,4 +46,34 @@ describe('Intro — tilt', () => {
     const intro = new Intro(root)
     await expect(intro.requestTilt()).resolves.toBe(false)
   })
+
+  it('onTiltGranted fires when requestTilt is granted (chip tap included)', async () => {
+    const w = window as unknown as { DeviceOrientationEvent?: unknown }
+    const original = w.DeviceOrientationEvent
+    w.DeviceOrientationEvent = { requestPermission: () => Promise.resolve('granted') }
+    try {
+      const intro = new Intro(root)
+      let granted = 0
+      intro.onTiltGranted(() => granted++)
+      await expect(intro.requestTilt()).resolves.toBe(true)
+      expect(granted).toBe(1)
+    } finally {
+      w.DeviceOrientationEvent = original
+    }
+  })
+
+  it('onTiltGranted does not fire on denial', async () => {
+    const w = window as unknown as { DeviceOrientationEvent?: unknown }
+    const original = w.DeviceOrientationEvent
+    w.DeviceOrientationEvent = { requestPermission: () => Promise.resolve('denied') }
+    try {
+      const intro = new Intro(root)
+      let granted = 0
+      intro.onTiltGranted(() => granted++)
+      await expect(intro.requestTilt()).resolves.toBe(false)
+      expect(granted).toBe(0)
+    } finally {
+      w.DeviceOrientationEvent = original
+    }
+  })
 })

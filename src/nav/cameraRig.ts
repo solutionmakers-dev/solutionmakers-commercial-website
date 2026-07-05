@@ -46,7 +46,17 @@ const VEL_SETTLE = 0.0006 // |velT| below this = "settled" → snap
 const SNAP_RANGE = 0.045 // snap to a station only within this many t of it
 const ANCHOR_LATERAL = 2.2 // how far off the path a station group sits
 const LOOK_AHEAD = 0.035 // travel gaze leads the camera by this much t
-const DIVE_DISTANCE = 3.4 // camera-to-anchor distance at a dive pose
+// 4.4 (raised from 3.4 in Task 14): at 3.4 the wider motifs (satellite orbits
+// r≤2.4, contact mote ring r≤1.7 + cage) cropped at the frame edges from the
+// dive pose; 4.4 frames a full motif with breathing room at fov 55.
+const DIVE_DISTANCE = 4.4 // camera-to-anchor distance at a dive pose
+// On narrow (portrait) viewports the horizontal fov is the binding constraint
+// — at aspect ~0.46 the half-frame at 4.4 units is barely ±1.06 world units,
+// so a motif family like the R&D orbits (r ≤ 2.4) crops to a wall of arcs.
+// Same discipline as MAP_FIT_ASPECT: the dive pose backs off just enough for
+// this half-width (world units) to fit the frame; aspects whose half-frame
+// already covers it (≥ ~0.96 at fov 55) keep the canonical distance.
+const DIVE_FIT_HALF_WIDTH = 2.2
 const DIVE_ELEVATION_DEG = 12 // dive pose sits this far above the horizontal
 const LOOK_MAX_YAW = 0.35 // max look-around yaw (rad)
 const LOOK_MAX_PITCH = 0.2 // max look-around pitch (rad)
@@ -217,11 +227,16 @@ export class CameraRig {
     const viewDir = path.sub(anchor) // points from the station back toward the path
     if (viewDir.lengthSq() < 1e-8) viewDir.copy(this.curve.getTangentAt(clamp01(st.t)).negate())
     viewDir.normalize()
+    // Portrait fit: back off until DIVE_FIT_HALF_WIDTH clears the horizontal
+    // frame (see the constant's note); wide viewports keep the canonical 4.4.
+    const halfW =
+      DIVE_DISTANCE * Math.tan(((this.camera.fov / 2) * Math.PI) / 180) * Math.max(this.camera.aspect, 1e-6)
+    const dist = DIVE_DISTANCE * Math.max(1, DIVE_FIT_HALF_WIDTH / halfW)
     const el = (DIVE_ELEVATION_DEG * Math.PI) / 180
     const pos = anchor
       .clone()
-      .addScaledVector(viewDir, DIVE_DISTANCE * Math.cos(el))
-      .addScaledVector(UP, DIVE_DISTANCE * Math.sin(el))
+      .addScaledVector(viewDir, dist * Math.cos(el))
+      .addScaledVector(UP, dist * Math.sin(el))
     return { pos, look: anchor }
   }
 
@@ -336,15 +351,14 @@ export class CameraRig {
   warpTo(id: string, onDone?: () => void): void {
     const st = this.stationById(id)
     if (!st) return
-    this.travelResolveT = clamp01(st.t)
-    this.beginTween(
-      this.travelPos(st.t),
-      this.travelLook(st.t),
-      WARP_MS,
-      'travel',
-      this.travelFov,
-      onDone,
-    )
+    this.warpToT(st.t, onDone)
+  }
+
+  /** Fly to an arbitrary path parameter with the warp tween (home chip → t=0). */
+  warpToT(t: number, onDone?: () => void): void {
+    const ct = clamp01(t)
+    this.travelResolveT = ct
+    this.beginTween(this.travelPos(ct), this.travelLook(ct), WARP_MS, 'travel', this.travelFov, onDone)
   }
 
   // --- per-frame ----------------------------------------------------------

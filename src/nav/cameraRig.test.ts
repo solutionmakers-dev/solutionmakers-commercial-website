@@ -129,7 +129,7 @@ describe('CameraRig — stationAnchor', () => {
 })
 
 describe('CameraRig — dive', () => {
-  it('reaches the focus pose (3.4 units, 12° above, looking at the anchor) within 0.1', () => {
+  it('reaches the focus pose (4.4 units, 12° above, looking at the anchor) within 0.1', () => {
     const { rig, camera } = makeRig()
     const id = 'ai'
     const station = STATIONS.find((s) => s.id === id)!
@@ -139,16 +139,30 @@ describe('CameraRig — dive', () => {
     const el = (12 * Math.PI) / 180
     const expected = anchor
       .clone()
-      .add(viewDir.clone().multiplyScalar(3.4 * Math.cos(el)))
-      .add(UP.clone().multiplyScalar(3.4 * Math.sin(el)))
+      .add(viewDir.clone().multiplyScalar(4.4 * Math.cos(el)))
+      .add(UP.clone().multiplyScalar(4.4 * Math.sin(el)))
 
     const onDone = vi.fn()
     rig.diveTo(id, onDone)
     tick(rig, 60) // 1 s ≥ 650 ms tween
 
     expect(camera.position.distanceTo(expected)).toBeLessThan(0.1)
-    expect(camera.position.distanceTo(anchor)).toBeCloseTo(3.4, 1)
+    expect(camera.position.distanceTo(anchor)).toBeCloseTo(4.4, 1)
     expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('backs the dive pose off on portrait so wide motifs fit the horizontal frame', () => {
+    // Portrait phone: horizontal half-frame at 4.4 units is ~1.06 world units,
+    // so the pose scales out until DIVE_FIT_HALF_WIDTH (2.2) fits.
+    const aspect = 393 / 852
+    const camera = new THREE.PerspectiveCamera(55, aspect, 0.1, 300)
+    const rig = new CameraRig(camera, STATIONS)
+    const anchor = rig.stationAnchor('rd')
+    rig.diveTo('rd')
+    tick(rig, 120)
+    const expected = 4.4 * Math.max(1, 2.2 / (4.4 * Math.tan((27.5 * Math.PI) / 180) * aspect))
+    expect(camera.position.distanceTo(anchor)).toBeCloseTo(expected, 1)
+    expect(expected).toBeGreaterThan(8) // sanity: portrait really does back off
   })
 
   it('ignores travel input while diving, then restores travel after exitDive', () => {
@@ -186,6 +200,15 @@ describe('CameraRig — map & warp', () => {
     tick(rig, 120) // > 900 ms
     expect(rig.t).toBeCloseTo(0.8, 2)
     expect(rig.nearestStation().id).toBe('rd')
+  })
+
+  it('warpToT flies to an arbitrary path parameter (home = 0)', () => {
+    const { rig } = makeRig()
+    rig.addTravel(0.64 / 0.00042)
+    tick(rig, 300)
+    rig.warpToT(0)
+    tick(rig, 120) // > 900 ms
+    expect(rig.t).toBeCloseTo(0, 3)
   })
 
   it('warpTo with an unknown id does not throw and leaves travel unchanged', () => {

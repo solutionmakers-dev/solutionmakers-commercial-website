@@ -169,6 +169,14 @@ html, body {
   background: var(--text);
 }
 
+/* Task 14: while the focus sheet is open on phones, the orb duplicates the
+   sheet's own ✕ / swipe-close and sits on top of it — hide it there. The
+   ≥768px side-card layout keeps the orb. (body.sm-mode-focus is toggled by
+   the orchestrator on nav mode changes.) */
+@media (max-width: 767.98px) {
+  body.sm-mode-focus .sm-hud__orb { display: none; }
+}
+
 /* ---- Panel: glass sheet (mobile bottom sheet) ---- */
 .sm-panel {
   position: fixed;
@@ -408,7 +416,10 @@ html, body {
   opacity: 1;
   transition: opacity .7s var(--sm-ease);
 }
-.sm-intro.is-out { opacity: 0; pointer-events: none; }
+/* ID-prefixed on purpose: `#ui > *` (specificity 1-0-0) re-enables pointer
+   events on every overlay child, so a bare `.sm-intro.is-out` (0-2-0) would
+   lose and the faded intro would keep eating the canvas's gestures forever. */
+#ui .sm-intro.is-out { opacity: 0; pointer-events: none; }
 
 .sm-intro__inner {
   display: flex;

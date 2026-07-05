@@ -27,6 +27,7 @@ export class Intro {
   private input = 0
   private entered = false
   private onEnteredCb: (() => void) | null = null
+  private onTiltGrantedCb: (() => void) | null = null
 
   constructor(root: HTMLElement) {
     this.el = document.createElement('div')
@@ -98,11 +99,19 @@ export class Intro {
     try {
       const res = await DOE.requestPermission()
       const granted = res === 'granted'
-      if (granted) this.tiltChip.hidden = true
+      if (granted) {
+        this.tiltChip.hidden = true
+        this.onTiltGrantedCb?.()
+      }
       return granted
     } catch {
       return false
     }
+  }
+
+  /** Fires whenever a tilt permission request (chip tap included) is granted. */
+  onTiltGranted(cb: () => void): void {
+    this.onTiltGrantedCb = cb
   }
 
   private enter(): void {
