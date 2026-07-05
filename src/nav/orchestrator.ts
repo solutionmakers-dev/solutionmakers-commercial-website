@@ -346,6 +346,50 @@ export function orchestrate(deps: AppDeps): App {
     if (mapFade > 0) constellation.update(dt, elapsed)
   }
 
+  // --- e2e test seam (dev only) ---------------------------------------------
+  // A read-only window handle used exclusively by the Playwright suite
+  // (e2e/) to (a) await real camera/nav state instead of guessing at timing —
+  // the RAF loop runs slowly under headless SwiftShader, so wall-clock sleeps
+  // are unreliable — and (b) locate the on-screen pixel of a 3D station core /
+  // map node, which has no DOM handle. Gated on import.meta.env.DEV, so it is
+  // tree-shaken out of the production build entirely (no behaviour or bundle
+  // impact on the shipped site). It mutates nothing.
+  if (import.meta.env.DEV) {
+    const seam = {
+      // `cam` is the live camera position — the reliable "is it moving?" signal
+      // (rig.t freezes during a dive/map/warp tween, which drives the camera
+      // position directly, so t-stillness would falsely report rest mid-tween).
+      state: () => ({
+        mode: nav.mode,
+        t: rig.t,
+        stationId: nav.stationId,
+        hash: location.hash,
+        cam: [camera.position.x, camera.position.y, camera.position.z] as [number, number, number],
+        // Rig phase (read-only): 'tween' while a dive/map/warp animation plays.
+        // TS `private` is a compile-time fiction, so this reads the live field
+        // without CameraRig needing a getter. Lets the suite wait out a tween
+        // whose eased start would otherwise read as "already still".
+        phase: (rig as unknown as { phase: string }).phase,
+      }),
+      /** Live screen pixel of a station core (its raycast hit sphere), or null. */
+      projectStation: (id: string): { x: number; y: number; onscreen: boolean } | null => {
+        const st = stations.find((s) => s.def.id === id)
+        const hit = st && stationHits.get(st)
+        if (!hit) return null
+        const v = new THREE.Vector3()
+        hit.getWorldPosition(v)
+        v.project(camera)
+        const rect = canvas.getBoundingClientRect()
+        return {
+          x: rect.left + (v.x * 0.5 + 0.5) * rect.width,
+          y: rect.top + (-v.y * 0.5 + 0.5) * rect.height,
+          onscreen: Math.abs(v.x) <= 1 && Math.abs(v.y) <= 1 && v.z < 1,
+        }
+      },
+    }
+    ;(window as unknown as { __smE2E?: typeof seam }).__smE2E = seam
+  }
+
   return {
     frame(dt: number, elapsed: number): void {
       quality.sample(dt)
