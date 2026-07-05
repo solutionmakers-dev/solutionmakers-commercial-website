@@ -69,7 +69,7 @@ export class Intro {
     this.tiltChip.type = 'button'
     this.tiltChip.className = 'sm-intro__tilt'
     this.tiltChip.dataset.introTilt = ''
-    this.tiltChip.textContent = 'Tilt to look around'
+    this.tiltChip.textContent = SITE.tiltHint
     this.tiltChip.hidden = true
     this.tiltChip.addEventListener('click', () => void this.requestTilt())
     root.appendChild(this.tiltChip)

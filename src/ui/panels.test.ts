@@ -3,6 +3,31 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { PanelLayer } from './panels'
 import { STATIONS, SITE, type StationDef } from '../content/content'
 
+/**
+ * jsdom has no PointerEvent constructor. Polyfill with a MouseEvent subclass
+ * carrying the extra pointer fields GestureController reads (mirrors the
+ * pattern in nav/gestures.test.ts).
+ */
+class FakePointerEvent extends MouseEvent {
+  readonly pointerId: number
+  constructor(type: string, params: MouseEventInit & { pointerId?: number; timeStamp?: number } = {}) {
+    super(type, params)
+    this.pointerId = params.pointerId ?? 0
+    if (params.timeStamp !== undefined) {
+      Object.defineProperty(this, 'timeStamp', { value: params.timeStamp, configurable: true })
+    }
+  }
+}
+function pointerDown(id: number, x: number, y: number, t: number): Event {
+  return new FakePointerEvent('pointerdown', { pointerId: id, clientX: x, clientY: y, timeStamp: t })
+}
+function pointerMove(id: number, x: number, y: number, t: number): Event {
+  return new FakePointerEvent('pointermove', { pointerId: id, clientX: x, clientY: y, timeStamp: t })
+}
+function pointerUp(id: number, x: number, y: number, t: number): Event {
+  return new FakePointerEvent('pointerup', { pointerId: id, clientX: x, clientY: y, timeStamp: t })
+}
+
 const byId = (id: string): StationDef => {
   const d = STATIONS.find((s) => s.id === id)
   if (!d) throw new Error(`no station ${id}`)
@@ -103,5 +128,41 @@ describe('PanelLayer — close / hide', () => {
     expect(root.querySelector('h2')).not.toBeNull()
     panel.hide()
     expect(root.querySelector('h2')).toBeNull()
+  })
+})
+
+describe('PanelLayer — swipe-close vs. content scroll', () => {
+  it('does not close on a >=80px downward drag while the content is scrolled (scrollTop > 0)', () => {
+    const panel = new PanelLayer(root)
+    let n = 0
+    panel.onClose(() => n++)
+    panel.show(software)
+
+    const panelEl = root.querySelector<HTMLElement>('[data-panel]')!
+    const content = root.querySelector<HTMLElement>('.sm-panel__content')!
+    Object.defineProperty(content, 'scrollTop', { value: 50, configurable: true })
+
+    panelEl.dispatchEvent(pointerDown(1, 0, 0, 0))
+    panelEl.dispatchEvent(pointerMove(1, 0, 100, 50)) // 100px downward drag in one move
+    panelEl.dispatchEvent(pointerUp(1, 0, 100, 60))
+
+    expect(n).toBe(0)
+  })
+
+  it('closes on a >=80px downward drag while the content is at the top (scrollTop <= 0)', () => {
+    const panel = new PanelLayer(root)
+    let n = 0
+    panel.onClose(() => n++)
+    panel.show(software)
+
+    const panelEl = root.querySelector<HTMLElement>('[data-panel]')!
+    const content = root.querySelector<HTMLElement>('.sm-panel__content')!
+    Object.defineProperty(content, 'scrollTop', { value: 0, configurable: true })
+
+    panelEl.dispatchEvent(pointerDown(1, 0, 0, 0))
+    panelEl.dispatchEvent(pointerMove(1, 0, 100, 50)) // 100px downward drag in one move
+    panelEl.dispatchEvent(pointerUp(1, 0, 100, 60))
+
+    expect(n).toBe(1)
   })
 })

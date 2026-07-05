@@ -22,5 +22,6 @@ describe('content', () => {
   it('site copy present', () => {
     expect(SITE.email).toContain('@')
     expect(SITE.manifesto.line1.length).toBeGreaterThan(4)
+    expect(SITE.tiltHint.length).toBeGreaterThan(4)
   })
 })

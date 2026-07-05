@@ -13,6 +13,7 @@ export const SITE = {
     line2: 'Software, intelligence and hardware — imagined, engineered and shipped end to end.',
   },
   hint: 'slide to enter',
+  tiltHint: 'Tilt to look around',
 }
 
 export const STATIONS: StationDef[] = [

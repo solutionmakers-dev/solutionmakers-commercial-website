@@ -64,10 +64,18 @@ export class PanelLayer {
     root.appendChild(this.panel)
 
     // Swipe-down-to-close: accumulate downward drag on the panel itself.
+    // Guarded against scrolling the (overflow-y: auto) content: only count
+    // drag toward the close threshold while the content is scrolled to its
+    // top, and reset the accumulator the moment it isn't — otherwise a long
+    // scroll can rack up dy >= threshold and accidentally dismiss the sheet.
     this.gestures = new GestureController(this.panel)
     this.gestures.on((e) => {
       if (!this.open) return
       if (e.type === 'dragmove') {
+        if (this.content.scrollTop > 0) {
+          this.swipeDy = 0
+          return
+        }
         this.swipeDy = Math.max(0, this.swipeDy + e.dy)
         if (this.swipeDy >= SWIPE_CLOSE_PX) {
           this.swipeDy = 0
