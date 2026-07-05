@@ -16,6 +16,9 @@ import { CameraRig } from './nav/cameraRig'
 import { damp } from './nav/damp'
 import { GestureController } from './nav/gestures'
 import { STATIONS } from './content/content'
+import { Hud } from './ui/hud'
+import { PanelLayer } from './ui/panels'
+import { Intro } from './ui/intro'
 import logoSvg from './assets/logo-mark.svg?raw'
 
 const canvas = document.querySelector<HTMLCanvasElement>('#scene')
@@ -106,3 +109,27 @@ startLoop((dt, elapsed) => {
   constellation.update(dt, elapsed)
   renderer.render(scene, camera)
 })
+
+// TEMP (Task 13 visual verification ONLY — remove; Task 14 wires the real UI).
+// `?ui=<state>` mounts the overlay components over the live hero so their
+// premium look can be screenshotted. Not part of the shipped nav flow.
+const uiDemo = new URLSearchParams(location.search).get('ui')
+if (uiDemo) {
+  const uiRoot = document.querySelector<HTMLElement>('#ui')
+  if (uiRoot) {
+    if (uiDemo === 'intro') {
+      new Intro(uiRoot).play(() => {})
+    } else if (uiDemo === 'hud') {
+      const hud = new Hud(uiRoot, STATIONS)
+      hud.setMode('travel')
+      hud.setProgress(0.48)
+      rig.addTravel(720) // TEMP: drift into open space so the HUD chrome reads cleanly for the shot
+    } else if (uiDemo.startsWith('panel')) {
+      const id = uiDemo.split('-')[1] ?? 'software'
+      const def = STATIONS.find((s) => s.id === id) ?? STATIONS[1]!
+      const hud = new Hud(uiRoot, STATIONS)
+      hud.setMode('focus')
+      new PanelLayer(uiRoot).show(def)
+    }
+  }
+}
