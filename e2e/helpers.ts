@@ -229,6 +229,40 @@ export async function tapCanvas(ctx: Ctx, x: number, y: number): Promise<void> {
   else await ctx.page.mouse.click(x, y)
 }
 
+/**
+ * Click a panel-internal control (the ✕, a satellite tab, copy/mail) with REAL
+ * input — a genuine mouse click (desktop) or touch tap (mobile), NOT a
+ * dispatchEvent. This is what regression-proofs the pointer-capture fix: the
+ * panel's swipe-close GestureController must not grab pointer capture on a
+ * stationary tap, or the browser retargets the derived click to the panel and
+ * the child's handler never fires (desktop/mouse specifically — see task-16b).
+ *
+ * The panel's cosmetic slide-in transition does not reliably finish under the
+ * slow headless software renderer, which parks the card off-screen; since that
+ * is unrelated to hit-testing, we snap the transition off so the control sits
+ * at its true on-screen coordinates, then dispatch the real click there.
+ */
+export async function tapPanelControl(ctx: Ctx, selector: string): Promise<void> {
+  const { page, vp } = ctx
+  await page.addStyleTag({ content: '.sm-panel, .sm-panel * { transition: none !important }' })
+  const loc = page.locator(selector)
+  const onscreen = (b: { x: number; y: number; width: number; height: number }): boolean => {
+    const cx = b.x + b.width / 2
+    const cy = b.y + b.height / 2
+    return cx >= 0 && cx <= vp.width && cy >= 0 && cy <= vp.height
+  }
+  let box = await loc.boundingBox()
+  for (let i = 0; i < 20 && (!box || !onscreen(box)); i++) {
+    await page.waitForTimeout(50)
+    box = await loc.boundingBox()
+  }
+  if (!box || !onscreen(box)) throw new Error(`panel control ${selector} never settled on-screen`)
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  if (ctx.isMobile) await page.touchscreen.tap(x, y)
+  else await page.mouse.click(x, y)
+}
+
 /** Did a tap land on its 3D target? Poll the nav mode for the expected change. */
 async function tookEffect(page: Page, mode: SeamState['mode']): Promise<boolean> {
   try {

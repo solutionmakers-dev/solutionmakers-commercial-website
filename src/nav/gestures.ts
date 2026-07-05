@@ -106,12 +106,24 @@ export class GestureController {
     this.suppressTap = suppressTap
   }
 
-  private readonly onPointerDown = (e: PointerEvent): void => {
+  /**
+   * Capture the pointer so we keep receiving move/up even if it leaves `el`.
+   * Deliberately NOT called on pointerdown: pointer capture retargets the
+   * derived `click` (and dblclick/contextmenu) to the capturing element, which
+   * would swallow taps on interactive children (panel ✕, satellite tabs, copy /
+   * mail buttons). We only capture once a stream is unambiguously a drag or a
+   * pinch — i.e. no longer a tap candidate — so stationary taps keep firing a
+   * real click on whatever child they landed on.
+   */
+  private capture(id: number): void {
     try {
-      this.el.setPointerCapture(e.pointerId)
+      this.el.setPointerCapture(id)
     } catch {
       // unsupported (e.g. jsdom) — harmless in that case
     }
+  }
+
+  private readonly onPointerDown = (e: PointerEvent): void => {
     this.points.set(e.pointerId, { x: e.clientX, y: e.clientY })
 
     if (this.mode === 'idle') {
@@ -135,6 +147,10 @@ export class GestureController {
       this.activeId = null
       this.dragging = false
       this.history = []
+      // A two-finger pinch is never a child click; capture both so a finger
+      // sliding off `el` mid-pinch doesn't drop out of tracking.
+      this.capture(otherId)
+      this.capture(e.pointerId)
       return
     }
 
@@ -154,6 +170,9 @@ export class GestureController {
       const totalDist = Math.hypot(e.clientX - this.startX, e.clientY - this.startY)
       if (!this.dragging && totalDist >= TAP_MOVE_PX) {
         this.dragging = true
+        // Now that this is unambiguously a drag (not a tap), grab pointer
+        // capture so the rest of the drag tracks even if it leaves `el`.
+        this.capture(e.pointerId)
       }
       if (this.dragging) {
         // `lastX`/`lastY` still hold the down point until the very first

@@ -13,6 +13,7 @@ import {
   hash,
   activeDotId,
   state,
+  tapPanelControl,
   type Ctx,
 } from './helpers'
 
@@ -22,11 +23,12 @@ import {
  * accessible mirror — on both the mobile and desktop layouts. Every test
  * collects uncaught page errors and asserts none occurred.
  *
- * Interactions are real (wheel / synthetic touch / DOM clicks). Panel-internal
- * buttons are fired with dispatchEvent('click') on purpose: the panel's own
- * swipe-close GestureController takes pointer capture on pointerdown, which
- * redirects the compatibility click away from a child button — see the
- * task-16 report's findings. HUD buttons (outside the panel) use real clicks.
+ * Interactions are real throughout — wheel, synthetic touch, and genuine mouse
+ * clicks / touch taps (never dispatchEvent) — including on panel-internal
+ * buttons (the ✕, satellite tabs). Those go through `tapPanelControl`, which
+ * exercises the pointer-capture path the task-16b fix corrects: the panel's
+ * swipe-close GestureController now takes pointer capture only once a drag
+ * actually starts, so a stationary tap's derived click still reaches the child.
  */
 
 function shot(page: Page, tag: string, name: string): Promise<Buffer> {
@@ -124,7 +126,8 @@ test.describe('Solution Makers experience', () => {
     const { ctx, errors } = await bootEnter(page, tag, '/#ai')
     await diveStation(ctx, 'ai')
     await expect(page.locator('[data-panel]')).toHaveClass(/is-open/)
-    await page.locator('[data-panel-close]').dispatchEvent('click')
+    // REAL click on the ✕ (not dispatchEvent): proves the pointer-capture fix.
+    await tapPanelControl(ctx, '[data-panel-close]')
     await waitForMode(page, 'travel')
     await expect(page.locator('[data-panel]')).not.toHaveClass(/is-open/)
     expect(await hash(page)).toBe('')
@@ -179,9 +182,10 @@ test.describe('Solution Makers experience', () => {
     const blurb = page.locator('[data-panel-blurb]')
     // Selecting a tab swaps the blurb region (independent of whichever venture
     // the dive tap happened to pre-select).
-    await page.locator(`[data-panel-tab][data-sat-id="${first!.id}"]`).dispatchEvent('click')
+    // REAL taps on the tabs (not dispatchEvent): proves the pointer-capture fix.
+    await tapPanelControl(ctx, `[data-panel-tab][data-sat-id="${first!.id}"]`)
     await expect(blurb).toHaveText(first!.blurb)
-    await page.locator(`[data-panel-tab][data-sat-id="${third!.id}"]`).dispatchEvent('click')
+    await tapPanelControl(ctx, `[data-panel-tab][data-sat-id="${third!.id}"]`)
     await expect(blurb).toHaveText(third!.blurb)
     await expect(page.locator(`[data-panel-tab][data-sat-id="${third!.id}"]`)).toHaveClass(/is-active/)
     await shot(page, tag, '09-rd')
