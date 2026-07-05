@@ -43,6 +43,12 @@ const STATION_HIT_RADIUS = 1.0
 const DRAG_LOOK_GAIN = 1 / 260
 /** Look-around drifts back to centre at this rate once the finger lifts. */
 const DRAG_LOOK_DECAY = 1.6
+/** Desktop passive mouse parallax: a cursor at the viewport edge deflects the
+ *  look by this fraction of the full (drag/tilt) range — deliberately weak so
+ *  it reads as a subtle parallax, never a fight with drag-look. */
+const MOUSE_LOOK_GAIN = 0.5
+/** Re-fit debounce (ms) for resize/orientation change (see rig.refit). */
+const REFIT_DEBOUNCE_MS = 150
 /** Pinch-out beyond this scale in travel opens the map… */
 const PINCH_OPEN = 1.25
 /** …and pinch-in below this scale in map closes it. */
@@ -136,6 +142,8 @@ export function orchestrate(deps: AppDeps): App {
   let dragActive = false
   let tiltNX = 0
   let tiltNY = 0
+  let mouseNX = 0 // desktop passive mouse parallax (normalized, gain applied)
+  let mouseNY = 0
 
   // --- nav flows (NavState first; it returning false means "not now") --------
   function hideMapNow(): void {
@@ -288,26 +296,64 @@ export function orchestrate(deps: AppDeps): App {
   })
 
   // --- arrival / deep link / tilt -------------------------------------------------
-  const bootId = readHash()
-  intro.play(() => {
-    nav.enter()
-    hud.setProgress(rig.t)
-    if (bootId) rig.warpTo(bootId) // valid hash → fly straight to the station
-  })
-
-  intro.onTiltGranted(() => {
+  // Device-orientation (gyro) parallax. Attached at most once (the guard below):
+  //   • iOS — behind the permission chip: intro.requestTilt() → onTiltGranted.
+  //   • Android / desktop-with-sensor — no permission gate, so we attach it
+  //     directly on enter (intro.sensorTiltReady()); otherwise the whole non-iOS
+  //     sensor base would silently get no tilt at all.
+  let tiltAttached = false
+  function attachTilt(): void {
+    if (tiltAttached) return
+    tiltAttached = true
     window.addEventListener('deviceorientation', (e) => {
       tiltNX = THREE.MathUtils.clamp((e.gamma ?? 0) / 45, -1, 1)
       tiltNY = THREE.MathUtils.clamp(((e.beta ?? 45) - 45) / 45, -1, 1)
     })
+  }
+  intro.onTiltGranted(attachTilt)
+
+  const bootId = readHash()
+  intro.play(() => {
+    nav.enter()
+    hud.setProgress(rig.t)
+    if (intro.sensorTiltReady()) attachTilt() // non-iOS sensor: no chip, attach now
+    if (bootId) rig.warpTo(bootId) // valid hash → fly straight to the station
+  })
+
+  // Desktop passive mouse parallax (spec §2 interaction table). GestureController
+  // only emits while a pointer is down, so read hover moves straight off the
+  // canvas: a mouse with no buttons pressed → normalized offset from viewport
+  // centre → the same damped look pipeline as tilt (weaker gain, see below).
+  // Skips button-down moves so it never fights drag-look.
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.pointerType !== 'mouse' || e.buttons !== 0) return
+    const rect = canvas.getBoundingClientRect()
+    const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1
+    const ny = ((e.clientY - rect.top) / rect.height) * 2 - 1
+    mouseNX = THREE.MathUtils.clamp(nx, -1, 1) * MOUSE_LOOK_GAIN
+    mouseNY = THREE.MathUtils.clamp(-ny, -1, 1) * MOUSE_LOOK_GAIN
+  })
+
+  // Re-fit the parked map/focus pose on resize / orientation change (debounced):
+  // the aspect-dependent framing is baked at transition time, so a rotation while
+  // parked would crop the constellation / a dive motif until refit re-widens it.
+  let refitTimer: ReturnType<typeof setTimeout> | undefined
+  window.addEventListener('resize', () => {
+    if (refitTimer !== undefined) clearTimeout(refitTimer)
+    refitTimer = setTimeout(() => rig.refit(), REFIT_DEBOUNCE_MS)
   })
 
   // --- per-frame -------------------------------------------------------------------
   function updateLook(dt: number): void {
     dragNX = damp(dragNX, 0, DRAG_LOOK_DECAY, dt)
     if (nav.mode === 'travel') {
-      // Drag dominates while touching; the gyro takes over once the finger lifts.
-      rig.setLook(dragActive ? dragNX : dragNX + tiltNX, dragActive ? 0 : tiltNY)
+      // Drag dominates while touching; once the finger lifts (or was never
+      // down), the passive inputs take over — gyro tilt on mobile, mouse
+      // parallax on desktop (only one is ever non-zero on a given device).
+      rig.setLook(
+        dragActive ? dragNX : dragNX + tiltNX + mouseNX,
+        dragActive ? 0 : tiltNY + mouseNY,
+      )
     } else {
       rig.setLook(0, 0)
     }

@@ -27,7 +27,6 @@ export class PanelLayer {
   private readonly gestures: GestureController
 
   private onCloseCb: (() => void) | null = null
-  private onSatelliteCb: ((satId: string) => void) | null = null
 
   private currentDef: StationDef | null = null
   private tabs: HTMLButtonElement[] = []
@@ -142,10 +141,6 @@ export class PanelLayer {
     this.onCloseCb = cb
   }
 
-  onSatellite(cb: (satId: string) => void): void {
-    this.onSatelliteCb = cb
-  }
-
   // --- variants ------------------------------------------------------------
 
   private renderChips(def: StationDef): void {
@@ -184,7 +179,15 @@ export class PanelLayer {
     copy.textContent = 'Copy'
     copy.addEventListener('click', () => this.copyEmail(copy))
 
-    actions.append(mail, copy)
+    const linkedin = document.createElement('a')
+    linkedin.className = 'sm-btn sm-btn--ghost'
+    linkedin.href = SITE.linkedin
+    linkedin.target = '_blank'
+    linkedin.rel = 'noopener'
+    linkedin.dataset.panelLinkedin = ''
+    linkedin.textContent = 'LinkedIn'
+
+    actions.append(mail, copy, linkedin)
     this.content.append(address, actions)
   }
 
@@ -202,10 +205,9 @@ export class PanelLayer {
       tab.dataset.satId = sat.id
       tab.setAttribute('role', 'tab')
       tab.textContent = sat.title
-      tab.addEventListener('click', () => {
-        this.selectSatellite(def.id, sat.id)
-        this.onSatelliteCb?.(sat.id)
-      })
+      // The tab drives the panel's own blurb region only — there is no 3D-scene
+      // seam to notify (the R&D dive is orchestrated by nav, not the panel).
+      tab.addEventListener('click', () => this.selectSatellite(def.id, sat.id))
       tablist.appendChild(tab)
       return tab
     })

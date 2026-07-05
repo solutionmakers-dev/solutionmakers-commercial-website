@@ -1,7 +1,10 @@
 {
   "name": "solutionmakers-commercial-website",
   "version": "1.0.0",
-  "description": "",
+  "private": true,
+  "description": "Solution Makers — immersive 3D commercial website (The Solution Space)",
+  "author": "Solution Makers",
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -12,9 +15,6 @@
     "typecheck": "tsc --noEmit",
     "trace": "node scripts/trace-logo.mjs"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
   "packageManager": "pnpm@10.6.3",
   "dependencies": {
     "three": "^0.185.1"

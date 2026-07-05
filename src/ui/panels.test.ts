@@ -75,6 +75,16 @@ describe('PanelLayer — contact variant', () => {
     expect(root.querySelectorAll('[data-panel-chip]').length).toBe(0)
   })
 
+  it('renders a LinkedIn pill link (new tab, rel noopener)', () => {
+    const panel = new PanelLayer(root)
+    panel.show(contact)
+    const linkedin = root.querySelector<HTMLAnchorElement>('[data-panel-linkedin]')
+    expect(linkedin).not.toBeNull()
+    expect(linkedin!.getAttribute('href')).toBe(SITE.linkedin)
+    expect(linkedin!.getAttribute('target')).toBe('_blank')
+    expect(linkedin!.getAttribute('rel')).toBe('noopener')
+  })
+
   it('copies the email via navigator.clipboard and shows a copied state', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined)
     Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
@@ -89,17 +99,15 @@ describe('PanelLayer — contact variant', () => {
 })
 
 describe('PanelLayer — satellites variant', () => {
-  it('renders 4 tabs; clicking one fires onSatellite and swaps the blurb', () => {
+  it('renders 4 tabs; clicking one swaps the blurb and marks it active', () => {
     const panel = new PanelLayer(root)
-    let got: string | null = null
-    panel.onSatellite((id) => (got = id))
     panel.show(rd)
     const tabs = [...root.querySelectorAll('[data-panel-tab]')]
     expect(tabs.length).toBe(4)
     expect(tabs.map((t) => t.textContent)).toEqual(rd.satellites!.map((s) => s.title))
     click(tabs[1]!)
-    expect(got).toBe(rd.satellites![1]!.id)
     expect(root.textContent).toContain(rd.satellites![1]!.blurb)
+    expect(tabs[1]!.classList.contains('is-active')).toBe(true)
   })
 
   it('showSatellite swaps the blurb region and marks the active tab', () => {

@@ -62,6 +62,25 @@ describe('Intro — tilt', () => {
     }
   })
 
+  it('sensorTiltReady is true only with a sensor and NO permission gate (Android/desktop)', () => {
+    const w = window as unknown as { DeviceOrientationEvent?: unknown }
+    const original = w.DeviceOrientationEvent
+    try {
+      const intro = new Intro(root)
+      // Android / desktop-with-sensor: DeviceOrientationEvent exists, no requestPermission.
+      w.DeviceOrientationEvent = {}
+      expect(intro.sensorTiltReady()).toBe(true)
+      // iOS: requestPermission present → chip flow owns it, not the direct attach.
+      w.DeviceOrientationEvent = { requestPermission: () => Promise.resolve('granted') }
+      expect(intro.sensorTiltReady()).toBe(false)
+      // No sensor at all.
+      delete w.DeviceOrientationEvent
+      expect(intro.sensorTiltReady()).toBe(false)
+    } finally {
+      w.DeviceOrientationEvent = original
+    }
+  })
+
   it('onTiltGranted does not fire on denial', async () => {
     const w = window as unknown as { DeviceOrientationEvent?: unknown }
     const original = w.DeviceOrientationEvent

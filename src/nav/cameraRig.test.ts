@@ -219,6 +219,38 @@ describe('CameraRig — map & warp', () => {
     expect(rig.t).toBeCloseTo(before, 3)
   })
 
+  it('refit re-fits the parked map pose when the aspect rotates to portrait', () => {
+    // Park in the map pose at a wide (landscape) aspect — fit factor ≈ 1.
+    const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.1, 300)
+    const rig = new CameraRig(camera, STATIONS)
+    rig.toMap()
+    tick(rig, 120) // land in the parked 'map' pose
+    const before = camera.position.clone()
+
+    // Rotate to portrait (renderer.ts updates camera.aspect on resize).
+    camera.aspect = 9 / 19.5
+    camera.updateProjectionMatrix()
+    rig.refit()
+    tick(rig, 120) // no tween — the damper glides to the re-fit target
+
+    // Portrait binds on horizontal fov → the pose backs off higher and further
+    // so the constellation's lateral spread still fits the frame.
+    expect(camera.position.y).toBeGreaterThan(before.y + 5)
+    expect(camera.position.z).toBeGreaterThan(before.z + 5)
+  })
+
+  it('refit is a no-op while travelling (pose comes off the spline live)', () => {
+    const { rig, camera } = makeRig()
+    rig.addTravel(0.32 / 0.00042)
+    tick(rig, 200)
+    const before = camera.position.clone()
+    camera.aspect = 9 / 19.5
+    camera.updateProjectionMatrix()
+    rig.refit()
+    tick(rig, 60)
+    expect(camera.position.distanceTo(before)).toBeLessThan(0.05)
+  })
+
   it('toMap keeps the canonical pose on wide viewports and pulls higher/further on portrait', () => {
     // Wide (aspect 1 ≥ fit threshold): canonical pose, mid + (0, 50, 58).
     const { rig: wide, camera: wideCam } = makeRig()

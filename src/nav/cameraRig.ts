@@ -121,6 +121,18 @@ export class CameraRig {
   private readonly mapPos = new THREE.Vector3()
   private readonly mapLook = new THREE.Vector3()
 
+  // Which station the focus pose belongs to — lets `refit` recompute the dive
+  // pose for the current aspect when the device rotates while parked in focus.
+  private focusId: string | undefined
+
+  // Per-frame geometry scratch. travelPos/travelLook run ~60×/s; passing these
+  // as getPointAt targets and caching the cross temp keeps that path allocation-
+  // free (each vector is written then immediately read/copied by the caller).
+  private readonly _travelPos = new THREE.Vector3()
+  private readonly _lookPos = new THREE.Vector3()
+  private readonly _lookAhead = new THREE.Vector3()
+  private readonly _lookRight = new THREE.Vector3()
+
   // Active tween scratch.
   private readonly tween = new Tween()
   private readonly tweenFromPos = new THREE.Vector3()
@@ -157,9 +169,10 @@ export class CameraRig {
 
   // --- geometry -----------------------------------------------------------
 
-  /** Spline point at parameter `t` (arc-length fraction). */
+  /** Spline point at parameter `t` (arc-length fraction). Writes/returns the
+   *  shared `_travelPos` scratch — copy it before the next travelPos call. */
   private travelPos(t: number): THREE.Vector3 {
-    return this.curve.getPointAt(clamp01(t))
+    return this.curve.getPointAt(clamp01(t), this._travelPos)
   }
 
   /**
@@ -169,9 +182,9 @@ export class CameraRig {
    */
   private travelLook(t: number): THREE.Vector3 {
     const ct = clamp01(t)
-    const pos = this.curve.getPointAt(ct)
-    const ahead = this.curve.getPointAt(clamp01(ct + LOOK_AHEAD))
-    const dir = ahead.sub(pos)
+    const pos = this.curve.getPointAt(ct, this._lookPos)
+    const ahead = this.curve.getPointAt(clamp01(ct + LOOK_AHEAD), this._lookAhead)
+    const dir = ahead.sub(pos) // mutates _lookAhead in place → dir is _lookAhead
     let len = dir.length()
     if (len < 1e-4) {
       // At the very end of the path there is nothing ahead — gaze along the
@@ -182,9 +195,9 @@ export class CameraRig {
       dir.divideScalar(len)
     }
     dir.applyAxisAngle(UP, this.lookYaw)
-    const right = new THREE.Vector3().crossVectors(dir, UP).normalize()
+    const right = this._lookRight.crossVectors(dir, UP).normalize()
     dir.applyAxisAngle(right, this.lookPitch)
-    return pos.addScaledVector(dir, len)
+    return pos.addScaledVector(dir, len) // mutates/returns _lookPos
   }
 
   private stationById(id: string): StationDef | undefined {
@@ -337,6 +350,7 @@ export class CameraRig {
   diveTo(id: string, onDone?: () => void): void {
     const fp = this.focusPose(id)
     if (!fp) return
+    this.focusId = id // remembered so `refit` can re-fit this dive on rotate
     this.beginTween(fp.pos, fp.look, DIVE_MS * this.motionScale, 'focus', this.camera.fov, onDone)
   }
 
@@ -394,6 +408,32 @@ export class CameraRig {
       this.travelFov,
       onDone,
     )
+  }
+
+  /**
+   * Re-fit the parked map/focus pose to the CURRENT `camera.aspect`. Wire to a
+   * resize/orientation change: `toMap`/`focusPose` bake their aspect-dependent
+   * framing at transition time, so rotating the device while parked would leave
+   * the constellation (or a dive motif) cropped — the very thing MAP_FIT_ASPECT
+   * / DIVE_FIT_HALF_WIDTH exist to prevent. This recomputes that same math for
+   * the new aspect and moves the damper's TARGET only — no tween; the per-frame
+   * damper glides the camera to the corrected pose. No-op outside 'map'/'focus'
+   * (travel reads its pose off the spline live; a tween lands on a freshly
+   * computed pose already, so it self-corrects when it resolves).
+   */
+  refit(): void {
+    if (this.phase === 'map') {
+      const mid = this.curve.getPointAt(0.5)
+      const fit = Math.max(1, MAP_FIT_ASPECT / Math.max(this.camera.aspect, 1e-6))
+      this.mapPos.copy(mid).add(new THREE.Vector3(0, MAP_HEIGHT * fit, MAP_BEHIND * fit))
+      this.mapLook.copy(mid)
+    } else if (this.phase === 'focus' && this.focusId) {
+      const fp = this.focusPose(this.focusId)
+      if (fp) {
+        this.focusPos.copy(fp.pos)
+        this.focusLook.copy(fp.look)
+      }
+    }
   }
 
   // --- per-frame ----------------------------------------------------------

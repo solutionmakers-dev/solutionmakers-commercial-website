@@ -8,13 +8,31 @@
   <meta name="theme-color" content="#070B14" />
   <meta property="og:title" content="Solution Makers" />
   <meta property="og:description" content="A technology and innovation group. Enter the Solution Space." />
-  <meta property="og:image" content="/og.jpg" />
+  <!-- EDIT-ME: update og:image/og:url when moving to the final domain -->
+  <meta property="og:image" content="https://solutionmakers-dev.github.io/solutionmakers-commercial-website/og.jpg" />
+  <meta property="og:url" content="https://solutionmakers-dev.github.io/solutionmakers-commercial-website/" />
+  <meta name="twitter:card" content="summary_large_image" />
   <link rel="icon" href="/favicon.png" />
 </head>
 <body>
   <canvas id="scene" aria-hidden="true"></canvas>
   <div id="ui"></div>
-  <main id="mirror"></main>
+  <main id="mirror">
+    <!-- noscript: keep in sync with content.ts (SITE.name / manifesto / email).
+         JS-off: buildMirror never runs, so this static essentials block plus a
+         scoped style (undoes #mirror's clip-path hide) is all the visitor gets. -->
+    <noscript>
+      <style>
+        #mirror { position: static; width: auto; height: auto; overflow: visible; clip-path: none; }
+        .sm-mirror__noscript { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 72px 24px; text-align: center; background: #070B14; color: #e8eefc; min-height: 100vh; box-sizing: border-box; font-family: system-ui, sans-serif; }
+      </style>
+      <div class="sm-mirror__noscript">
+        <h1 class="sm-mirror__h1">SOLUTION MAKERS</h1>
+        <p class="sm-mirror__manifesto">We make solutions. Software, intelligence and hardware — imagined, engineered and shipped end to end.</p>
+        <a class="sm-mirror__email" href="mailto:contact@solutionmakers.io">contact@solutionmakers.io</a>
+      </div>
+    </noscript>
+  </main>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

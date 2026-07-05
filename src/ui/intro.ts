@@ -114,6 +114,19 @@ export class Intro {
     this.onTiltGrantedCb = cb
   }
 
+  /**
+   * True on platforms with a motion sensor but NO permission gate (Android,
+   * desktop-with-sensor): `DeviceOrientationEvent` exists yet has no
+   * `requestPermission`, so the orchestrator can attach the deviceorientation
+   * listener directly on enter, no chip. iOS (requestPermission defined) is
+   * excluded — it flows through the chip → `requestTilt` → `onTiltGranted`.
+   */
+  sensorTiltReady(): boolean {
+    const DOE = (window as unknown as { DeviceOrientationEvent?: DeviceOrientationPermission })
+      .DeviceOrientationEvent
+    return !!DOE && typeof DOE.requestPermission !== 'function'
+  }
+
   private enter(): void {
     if (this.entered) return
     this.entered = true

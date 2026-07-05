@@ -8,6 +8,7 @@ export interface StationDef {
 export const SITE = {
   name: 'SOLUTION MAKERS',
   email: 'contact@solutionmakers.io', // EDIT-ME: replace with the real contact address
+  linkedin: 'https://www.linkedin.com/company/solutionmakers', // EDIT-ME: confirm company slug
   manifesto: {
     line1: 'We make solutions.',
     line2: 'Software, intelligence and hardware — imagined, engineered and shipped end to end.',
