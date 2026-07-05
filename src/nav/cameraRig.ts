@@ -136,6 +136,10 @@ export class CameraRig {
   private readonly progressCbs: Array<(t: number) => void> = []
   private lastNotifiedT = 0
 
+  // Reduced-motion: scales every tween's duration (DIVE_MS/MAP_MS/WARP_MS).
+  // 1 = full duration (default); set once via `setMotionScale` at boot.
+  private motionScale = 1
+
   constructor(camera: THREE.PerspectiveCamera, stations: StationDef[]) {
     this.camera = camera
     this.stations = stations
@@ -319,17 +323,34 @@ export class CameraRig {
     done?.()
   }
 
+  /**
+   * Scales every subsequent tween's duration (dive/map/warp) by `scale` —
+   * e.g. `setMotionScale(0.35)` for `prefers-reduced-motion` shortens a
+   * 650ms dive to ~228ms. Set once at boot; takes effect from the next
+   * tween onward (does not retroactively speed up one already in flight).
+   */
+  setMotionScale(scale: number): void {
+    this.motionScale = scale
+  }
+
   /** Dive intimately close to a station. Unknown id → no-op (no throw). */
   diveTo(id: string, onDone?: () => void): void {
     const fp = this.focusPose(id)
     if (!fp) return
-    this.beginTween(fp.pos, fp.look, DIVE_MS, 'focus', this.camera.fov, onDone)
+    this.beginTween(fp.pos, fp.look, DIVE_MS * this.motionScale, 'focus', this.camera.fov, onDone)
   }
 
   /** Return from a dive to the travel pose at the current t. */
   exitDive(onDone?: () => void): void {
     this.travelResolveT = this._t
-    this.beginTween(this.travelPos(this._t), this.travelLook(this._t), DIVE_MS, 'travel', this.travelFov, onDone)
+    this.beginTween(
+      this.travelPos(this._t),
+      this.travelLook(this._t),
+      DIVE_MS * this.motionScale,
+      'travel',
+      this.travelFov,
+      onDone,
+    )
   }
 
   /** Pull back to the constellation overview: above and behind the path
@@ -338,13 +359,20 @@ export class CameraRig {
     const mid = this.curve.getPointAt(0.5)
     const fit = Math.max(1, MAP_FIT_ASPECT / Math.max(this.camera.aspect, 1e-6))
     const toPos = mid.clone().add(new THREE.Vector3(0, MAP_HEIGHT * fit, MAP_BEHIND * fit))
-    this.beginTween(toPos, mid, MAP_MS, 'map', MAP_FOV, onDone)
+    this.beginTween(toPos, mid, MAP_MS * this.motionScale, 'map', MAP_FOV, onDone)
   }
 
   /** Return from the map to the travel pose at the current t. */
   fromMap(onDone?: () => void): void {
     this.travelResolveT = this._t
-    this.beginTween(this.travelPos(this._t), this.travelLook(this._t), MAP_MS, 'travel', this.travelFov, onDone)
+    this.beginTween(
+      this.travelPos(this._t),
+      this.travelLook(this._t),
+      MAP_MS * this.motionScale,
+      'travel',
+      this.travelFov,
+      onDone,
+    )
   }
 
   /** From the map, fly to a station's travel pose. Unknown id → no-op (no throw). */
@@ -358,7 +386,14 @@ export class CameraRig {
   warpToT(t: number, onDone?: () => void): void {
     const ct = clamp01(t)
     this.travelResolveT = ct
-    this.beginTween(this.travelPos(ct), this.travelLook(ct), WARP_MS, 'travel', this.travelFov, onDone)
+    this.beginTween(
+      this.travelPos(ct),
+      this.travelLook(ct),
+      WARP_MS * this.motionScale,
+      'travel',
+      this.travelFov,
+      onDone,
+    )
   }
 
   // --- per-frame ----------------------------------------------------------

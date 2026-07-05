@@ -523,3 +523,153 @@ html, body {
   .sm-intro__hint-arrow { animation: none; }
   .sm-panel { transition-duration: .01ms; }
 }
+
+/* ============================================================
+   Task 15 — a11y mirror fallback + WebGL context-lost overlay.
+
+   buildMirror() (src/a11y/mirror.ts) renders the site name, manifesto and
+   every station into #mirror UNCONDITIONALLY on every boot — it's real,
+   focusable content for screen readers/crawlers, staying visually hidden
+   behind the clip-path rule near the top of this file. When WebGL creation
+   fails outright, main.ts calls revealMirrorAsFallback(), which adds
+   `.mirror-visible` below: no new markup, just enough styling to read as an
+   elegant static dark page — the same content, laid out properly, with the
+   canvas gone from the equation entirely.
+   ============================================================ */
+#mirror.mirror-visible {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: auto;
+  height: auto;
+  overflow-y: auto;
+  clip-path: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 72px 24px calc(96px + var(--sm-safe-b));
+  background: var(--void);
+  color: var(--text);
+  -webkit-overflow-scrolling: touch;
+}
+
+.sm-mirror__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  max-width: 640px;
+  margin-bottom: 48px;
+  text-align: center;
+}
+.sm-mirror__logo {
+  width: 46px;
+  height: auto;
+  opacity: .92;
+}
+.sm-mirror__h1 {
+  margin: 0;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(26px, 6vw, 38px);
+  letter-spacing: .04em;
+  color: #fff;
+}
+.sm-mirror__manifesto {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--sm-dim);
+}
+
+#mirror.mirror-visible .sm-mirror__section {
+  width: 100%;
+  max-width: 640px;
+  padding: 36px 0;
+  border-top: 1px solid var(--hairline);
+}
+#mirror.mirror-visible .sm-mirror__section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sm-mirror__title {
+  margin: 0 0 10px;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(20px, 3.6vw, 24px);
+  color: #fff;
+}
+.sm-mirror__tagline {
+  margin: 0 0 14px;
+  color: var(--blue);
+}
+.sm-mirror__body {
+  margin: 0 0 18px;
+  max-width: 56ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.sm-mirror__list {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.sm-mirror__list li {
+  padding: 7px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, .82);
+}
+.sm-mirror__satellites {
+  margin-top: 14px;
+  flex-direction: column;
+  gap: 10px;
+}
+.sm-mirror__satellites li {
+  max-width: 56ch;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.sm-mirror__satellites strong { color: #fff; }
+
+.sm-mirror__email {
+  display: inline-block;
+  margin-top: 18px;
+  font-family: "Space Grotesk";
+  font-size: 15px;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- WebGL context-lost overlay: a small, honest "still here" sign,
+   toggled via [hidden] (see the #ui [hidden] rule above) by the
+   webglcontextlost/restored listeners in main.ts. ---- */
+.sm-context-lost {
+  position: fixed;
+  z-index: 4;
+  top: calc(20px + var(--sm-safe-t));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--sm-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-family: "Space Grotesk";
+  font-size: 11px;
+  letter-spacing: .1em;
+}

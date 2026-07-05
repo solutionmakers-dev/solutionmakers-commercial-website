@@ -15,6 +15,7 @@ import { GestureController } from './gestures'
 import { NavState } from './navState'
 import { readHash, writeHash } from './deepLink'
 import { damp } from './damp'
+import { prefersReducedMotion } from '../a11y/reducedMotion'
 
 /**
  * Orchestrator — wires every module into the product experience. main.ts
@@ -46,6 +47,11 @@ const DRAG_LOOK_DECAY = 1.6
 const PINCH_OPEN = 1.25
 /** …and pinch-in below this scale in map closes it. */
 const PINCH_CLOSE = 0.8
+/** prefers-reduced-motion: camera tweens (dive/map/warp) shrink to this
+ *  fraction of their normal duration (650ms dive → ~228ms). */
+const REDUCED_MOTION_TWEEN_SCALE = 0.35
+/** prefers-reduced-motion: dust drift amplitude shrinks to this fraction. */
+const REDUCED_MOTION_DRIFT_SCALE = 0.5
 
 export interface AppDeps {
   ctx: Ctx
@@ -75,6 +81,17 @@ export function orchestrate(deps: AppDeps): App {
   const { canvas, camera } = ctx
 
   const nav = new NavState()
+
+  // --- reduced motion ---------------------------------------------------------
+  // Checked once at boot (the OS-level preference doesn't change mid-session
+  // in any way we need to react to live). Shortens every camera tween, halves
+  // the dust drift, and disables fling inertia below — a drag simply stops
+  // wherever it's released instead of continuing to glide/snap.
+  const reducedMotion = prefersReducedMotion()
+  if (reducedMotion) {
+    rig.setMotionScale(REDUCED_MOTION_TWEEN_SCALE)
+    env.setMotionScale(REDUCED_MOTION_DRIFT_SCALE)
+  }
 
   // --- tap targets ----------------------------------------------------------
   // One invisible sphere per station (material.visible=false skips rendering,
@@ -206,7 +223,9 @@ export function orchestrate(deps: AppDeps): App {
         break
       case 'dragend':
         dragActive = false
-        if (nav.mode === 'travel') rig.fling(-e.vy)
+        // Reduced motion: no fling inertia — the camera stays exactly where
+        // the drag left it rather than gliding on and possibly snapping.
+        if (nav.mode === 'travel' && !reducedMotion) rig.fling(-e.vy)
         break
       case 'wheel':
         if (nav.mode === 'travel') rig.addTravel(e.delta)

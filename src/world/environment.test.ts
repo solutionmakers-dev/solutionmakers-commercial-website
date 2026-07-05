@@ -228,3 +228,32 @@ describe('Environment — update', () => {
     expect(sky.position.z).toBeCloseTo(-37)
   })
 })
+
+describe('Environment — setMotionScale (reduced motion)', () => {
+  it('halves the dust drift offset from base when scaled to 0.5', () => {
+    // Same instance (same random base positions) at the same elapsed time,
+    // before vs. after halving — driftDust recomputes from the untouched
+    // `dustBase` each call (non-cumulative), so re-running at the same
+    // `elapsed` isolates the amplitude change cleanly.
+    const env = new Environment(2)
+    const base = (findDust(env).geometry.getAttribute('position') as THREE.BufferAttribute).array.slice()
+
+    env.update(1 / 60, 5, 0)
+    const posFull = (findDust(env).geometry.getAttribute('position') as THREE.BufferAttribute).array.slice()
+
+    env.setMotionScale(0.5)
+    env.update(1 / 60, 5, 0)
+    const posHalved = (findDust(env).geometry.getAttribute('position') as THREE.BufferAttribute).array as Float32Array
+
+    let sawNonZeroOffset = false
+    for (let i = 0; i < posFull.length; i++) {
+      const offsetFull = (posFull as Float32Array)[i]! - (base as Float32Array)[i]!
+      const offsetHalved = posHalved[i]! - (base as Float32Array)[i]!
+      if (Math.abs(offsetFull) > 1e-6) {
+        sawNonZeroOffset = true
+        expect(offsetHalved).toBeCloseTo(offsetFull / 2, 5)
+      }
+    }
+    expect(sawNonZeroOffset).toBe(true)
+  })
+})

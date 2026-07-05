@@ -229,6 +229,9 @@ export class Environment {
   private dustGeometry!: THREE.BufferGeometry
   private dustBase!: Float32Array
 
+  // Reduced-motion: scales the dust drift amplitude (1 = full, set once at boot).
+  private driftScale = 1
+
   constructor(tier: Tier) {
     this.group = new THREE.Group()
 
@@ -245,6 +248,12 @@ export class Environment {
    *  geometry/material so repeated tier changes don't leak GPU buffers. */
   applyTier(tier: Tier): void {
     this.rebuildDust(tier)
+  }
+
+  /** Reduced-motion hook: scales the dust drift amplitude — e.g.
+   *  `setMotionScale(0.5)` halves it. Set once at boot. */
+  setMotionScale(scale: number): void {
+    this.driftScale = scale
   }
 
   private rebuildDust(tier: Tier): void {
@@ -283,9 +292,10 @@ export class Environment {
       const bx = base[i * 3]!
       const by = base[i * 3 + 1]!
       const bz = base[i * 3 + 2]!
-      arr[i * 3] = bx + Math.sin(elapsed * DUST_DRIFT_FREQ_X + by) * DUST_DRIFT_AMPLITUDE
-      arr[i * 3 + 1] = by + Math.sin(elapsed * DUST_DRIFT_FREQ_Y + bz) * DUST_DRIFT_AMPLITUDE
-      arr[i * 3 + 2] = bz + Math.sin(elapsed * DUST_DRIFT_FREQ_Z + bx) * DUST_DRIFT_AMPLITUDE
+      const amp = DUST_DRIFT_AMPLITUDE * this.driftScale
+      arr[i * 3] = bx + Math.sin(elapsed * DUST_DRIFT_FREQ_X + by) * amp
+      arr[i * 3 + 1] = by + Math.sin(elapsed * DUST_DRIFT_FREQ_Y + bz) * amp
+      arr[i * 3 + 2] = bz + Math.sin(elapsed * DUST_DRIFT_FREQ_Z + bx) * amp
     }
     attr.needsUpdate = true
   }

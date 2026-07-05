@@ -240,6 +240,29 @@ describe('CameraRig — map & warp', () => {
   })
 })
 
+describe('CameraRig — setMotionScale (reduced motion)', () => {
+  it('shortens a dive tween so it lands well inside the unscaled 650ms', () => {
+    const { rig, camera } = makeRig()
+    rig.setMotionScale(0.35)
+    const anchor = rig.stationAnchor('ai')
+    const onDone = vi.fn()
+    rig.diveTo('ai', onDone)
+    // 0.35 * 650ms ≈ 228ms — 14 frames at 60fps (~233ms) should already have
+    // landed, well before the unscaled tween (650ms) would have.
+    tick(rig, 14)
+    expect(onDone).toHaveBeenCalledTimes(1)
+    expect(camera.position.distanceTo(anchor)).toBeCloseTo(4.4, 1)
+  })
+
+  it('defaults to full-speed (scale 1) tweens', () => {
+    const { rig } = makeRig()
+    const onDone = vi.fn()
+    rig.diveTo('ai', onDone)
+    tick(rig, 14) // ~233ms, well under the unscaled 650ms tween
+    expect(onDone).not.toHaveBeenCalled()
+  })
+})
+
 describe('CameraRig — look offset', () => {
   it('setLook shifts the look direction but not the position', () => {
     const { rig, camera } = makeRig()
