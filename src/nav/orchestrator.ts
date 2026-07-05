@@ -85,8 +85,9 @@ export function orchestrate(deps: AppDeps): App {
   // --- reduced motion ---------------------------------------------------------
   // Checked once at boot (the OS-level preference doesn't change mid-session
   // in any way we need to react to live). Shortens every camera tween, halves
-  // the dust drift, and disables fling inertia below — a drag simply stops
-  // wherever it's released instead of continuing to glide/snap.
+  // the dust drift, and disables fling inertia below — a drag settles directly
+  // onto the nearest station (if close enough) instead of gliding on through a
+  // velocity decay; no inertia, but the station magnetism still applies.
   const reducedMotion = prefersReducedMotion()
   if (reducedMotion) {
     rig.setMotionScale(REDUCED_MOTION_TWEEN_SCALE)
@@ -223,9 +224,13 @@ export function orchestrate(deps: AppDeps): App {
         break
       case 'dragend':
         dragActive = false
-        // Reduced motion: no fling inertia — the camera stays exactly where
-        // the drag left it rather than gliding on and possibly snapping.
-        if (nav.mode === 'travel' && !reducedMotion) rig.fling(-e.vy)
+        if (nav.mode === 'travel') {
+          // Reduced motion: no fling inertia (no glide), but station magnetism
+          // must still survive — settle directly onto the nearest station
+          // instead of gliding on through a velocity decay.
+          if (reducedMotion) rig.settleToNearestStation()
+          else rig.fling(-e.vy)
+        }
         break
       case 'wheel':
         if (nav.mode === 'travel') rig.addTravel(e.delta)

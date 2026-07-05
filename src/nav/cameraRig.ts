@@ -434,7 +434,7 @@ export class CameraRig {
         this.velT *= Math.exp(-FLING_DECAY * dt)
         if (Math.abs(this.velT) < VEL_SETTLE) {
           this.velT = 0
-          this.snapToNearestStation()
+          this.snapTargetToNearestStation()
         }
       }
     }
@@ -446,11 +446,26 @@ export class CameraRig {
     dampVec(this.look, this.travelLook(this._t), LOOK_LAMBDA, dt)
   }
 
-  /** On fling settle, glide the target onto the nearest station if close enough.
-   *  This nudges `targetT`; the damper eases `_t` in — a soft pull, not a jump. */
-  private snapToNearestStation(): void {
+  /** Shared snap logic: nudges `targetT` onto the nearest station's `.t` if
+   *  within `SNAP_RANGE`, otherwise leaves it untouched. Used both when a
+   *  fling settles (below) and by `settleToNearestStation` (reduced motion). */
+  private snapTargetToNearestStation(): void {
     const n = this.nearestTo(this.targetT)
     if (Math.abs(n.t - this.targetT) <= SNAP_RANGE) this.targetT = clamp01(n.t)
+  }
+
+  /**
+   * Direct station magnetism, without inertia. Used in place of `fling` under
+   * `prefers-reduced-motion`: there's no velocity decay to glide through, but
+   * the nearest-station snap should still happen the instant a drag ends, so
+   * the "fling disabled" contract stays "no glide", not "no magnetism". Nudges
+   * `targetT` only — `updateTravel`'s per-frame damper still eases `_t` onto
+   * it, so the settle itself remains a soft approach, never a teleport.
+   * Ignored outside travel (mirrors `addTravel`/`fling`'s phase guard).
+   */
+  settleToNearestStation(): void {
+    if (this.phase !== 'travel') return
+    this.snapTargetToNearestStation()
   }
 
   private applyToCamera(): void {

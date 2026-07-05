@@ -263,6 +263,36 @@ describe('CameraRig — setMotionScale (reduced motion)', () => {
   })
 })
 
+describe('CameraRig — settleToNearestStation (reduced motion, no fling)', () => {
+  it('converges rig.t onto the station when within SNAP_RANGE, without any velocity/inertia', () => {
+    const { rig } = makeRig()
+    const station = STATIONS.find((s) => s.id === 'software')!
+    // Land targetT just inside SNAP_RANGE (0.045) of the station, with no fling.
+    rig.addTravel((station.t - 0.03) / 0.00042)
+    tick(rig, 200)
+    expect(Math.abs(rig.t - station.t)).toBeGreaterThan(0.005) // not there yet
+
+    rig.settleToNearestStation()
+    tick(rig, 200) // damper eases targetT (now snapped) in — no glide needed
+    expect(rig.nearestStation().id).toBe('software')
+    expect(Math.abs(rig.t - station.t)).toBeLessThan(0.005)
+  })
+
+  it('leaves the travel target unchanged when farther than SNAP_RANGE from any station', () => {
+    const { rig } = makeRig()
+    // t=0.24 sits equidistant (0.08) between 'consulting' (0.16) and 'software'
+    // (0.32) — outside SNAP_RANGE (0.045) of every station.
+    const farT = 0.24
+    rig.addTravel(farT / 0.00042)
+    tick(rig, 300)
+    const before = rig.t
+
+    rig.settleToNearestStation()
+    tick(rig, 60)
+    expect(rig.t).toBeCloseTo(before, 3)
+  })
+})
+
 describe('CameraRig — look offset', () => {
   it('setLook shifts the look direction but not the position', () => {
     const { rig, camera } = makeRig()
