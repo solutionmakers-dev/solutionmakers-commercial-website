@@ -1,0 +1,675 @@
+:root {
+  --void: #070B14;
+  --void2: #0B1226;
+  --blue: #3A63C8;
+  --text: rgba(255, 255, 255, 0.87);
+  --hairline: rgba(255, 255, 255, 0.12);
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overscroll-behavior: none;
+  background: var(--void);
+  color: var(--text);
+  font-family: Inter, system-ui, sans-serif;
+}
+
+#scene {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+#ui {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+#ui > * {
+  pointer-events: auto;
+}
+
+#mirror {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.u-label {
+  font-family: "Space Grotesk";
+  letter-spacing: .35em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+/* ============================================================
+   Task 13 — UI overlay: HUD, glass content panels, arrival intro.
+
+   The #ui root is pointer-events:none with children re-enabled
+   (top of this file), so every interactive element below is a
+   direct child of #ui or explicitly opts back in. Colours use
+   the shared custom props; glass is blur over rgba(--void2).
+   Mobile-first — the panel is a bottom sheet and promotes to a
+   right-side card at ≥768px. Safe-area insets on the sheet, the
+   orb and the intro so nothing sits under a notch / home bar.
+   ============================================================ */
+
+:root {
+  --sm-glass: rgba(11, 18, 38, .55);
+  --sm-ease: cubic-bezier(.16, 1, .3, 1);
+  --sm-dim: rgba(255, 255, 255, .55);
+  --sm-safe-t: env(safe-area-inset-top, 0px);
+  --sm-safe-r: env(safe-area-inset-right, 0px);
+  --sm-safe-b: env(safe-area-inset-bottom, 0px);
+  --sm-safe-l: env(safe-area-inset-left, 0px);
+}
+
+/* The [hidden] attribute is how the HUD toggles pieces by mode; our display
+   rules below would otherwise out-specify the UA [hidden]{display:none}. */
+#ui [hidden] { display: none !important; }
+
+/* ---- HUD: wordmark chip (top-left, tap = home) ---- */
+.sm-hud__wordmark {
+  position: fixed;
+  top: calc(20px + var(--sm-safe-t));
+  left: calc(22px + var(--sm-safe-l));
+  margin: 0;
+  padding: 4px 2px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  font-weight: 500;
+  opacity: .82;
+  cursor: pointer;
+  transition: opacity .3s var(--sm-ease);
+}
+.sm-hud__wordmark:hover { opacity: 1; }
+
+/* ---- HUD: progress dots (right edge, vertical) ---- */
+.sm-hud__dots {
+  position: fixed;
+  top: 50%;
+  right: calc(10px + var(--sm-safe-r));
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.sm-hud__dot {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.sm-hud__dot::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .28);
+  transition: background .35s var(--sm-ease), transform .35s var(--sm-ease),
+    box-shadow .35s var(--sm-ease);
+}
+.sm-hud__dot:hover::before { background: rgba(255, 255, 255, .5); }
+.sm-hud__dot.is-active::before {
+  background: var(--blue);
+  transform: scale(1.6);
+  box-shadow: 0 0 12px 1px rgba(58, 99, 200, .7);
+}
+
+/* ---- HUD: orb (bottom-right) ---- */
+.sm-hud__orb {
+  position: fixed;
+  right: calc(22px + var(--sm-safe-r));
+  bottom: calc(24px + var(--sm-safe-b));
+  width: 54px;
+  height: 54px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: var(--sm-glass);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  color: var(--text);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .4);
+  transition: transform .3s var(--sm-ease), border-color .3s var(--sm-ease),
+    background .3s var(--sm-ease);
+}
+.sm-hud__orb:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, .26);
+}
+.sm-hud__orb:active { transform: scale(.95); }
+.sm-hud__orb-glyph { display: grid; place-items: center; }
+.sm-hud__orb-glyph.is-close { font-size: 17px; line-height: 1; }
+.sm-hud__orb-glyph.is-map {
+  grid-template-columns: repeat(2, 5px);
+  grid-template-rows: repeat(2, 5px);
+  gap: 5px;
+}
+.sm-hud__orb-pip {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text);
+}
+
+/* Task 14: while the focus sheet is open on phones, the orb duplicates the
+   sheet's own ✕ / swipe-close and sits on top of it — hide it there. The
+   ≥768px side-card layout keeps the orb. (body.sm-mode-focus is toggled by
+   the orchestrator on nav mode changes.) */
+@media (max-width: 767.98px) {
+  body.sm-mode-focus .sm-hud__orb { display: none; }
+}
+
+/* ---- Panel: glass sheet (mobile bottom sheet) ---- */
+.sm-panel {
+  position: fixed;
+  z-index: 3;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  max-height: 62vh;
+  border: 1px solid var(--hairline);
+  border-bottom: 0;
+  border-radius: 20px 20px 0 0;
+  background: var(--sm-glass);
+  -webkit-backdrop-filter: blur(18px) saturate(1.3);
+  backdrop-filter: blur(18px) saturate(1.3);
+  color: var(--text);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateY(102%);
+  box-shadow: 0 -24px 70px rgba(0, 0, 0, .5);
+  transition: transform .36s var(--sm-ease), opacity .36s var(--sm-ease);
+}
+.sm-panel.is-open { opacity: 1; transform: translateY(0); }
+
+.sm-panel__handle {
+  width: 40px;
+  height: 4px;
+  margin: 12px auto 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .22);
+}
+.sm-panel__content {
+  box-sizing: border-box;
+  max-height: calc(62vh - 18px);
+  overflow-y: auto;
+  padding: 12px 24px calc(28px + var(--sm-safe-b));
+  padding-left: calc(24px + var(--sm-safe-l));
+  padding-right: calc(24px + var(--sm-safe-r));
+  -webkit-overflow-scrolling: touch;
+}
+.sm-panel__close {
+  position: absolute;
+  top: 16px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--hairline);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .05);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: background .25s var(--sm-ease), border-color .25s var(--sm-ease);
+}
+.sm-panel__close:hover {
+  background: rgba(255, 255, 255, .12);
+  border-color: rgba(255, 255, 255, .26);
+}
+
+.sm-panel__tagline {
+  margin: 0 0 12px;
+  padding-right: 46px; /* clear the close button (top-right) */
+  color: var(--blue);
+  letter-spacing: .2em;
+  font-size: 10.5px;
+  opacity: .95;
+}
+.sm-panel__title {
+  margin: 0 0 14px;
+  max-width: 15ch;
+  padding-right: 46px;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(25px, 6vw, 30px);
+  line-height: 1.1;
+  letter-spacing: -.01em;
+  color: #fff;
+}
+.sm-panel__body {
+  margin: 0 0 22px;
+  max-width: 44ch;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ---- Panel: capability chips ---- */
+.sm-panel__chips {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.sm-panel__chip {
+  padding: 7px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .03);
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, .82);
+}
+
+/* ---- Panel: contact variant ---- */
+.sm-panel__email {
+  margin: 0 0 18px;
+  font-family: "Space Grotesk";
+  font-size: 15px;
+  letter-spacing: .01em;
+  color: #fff;
+  word-break: break-word;
+}
+.sm-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.sm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: 12.5px;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .2s var(--sm-ease), background .25s var(--sm-ease),
+    border-color .25s var(--sm-ease), color .25s var(--sm-ease);
+}
+.sm-btn:active { transform: scale(.97); }
+.sm-btn--primary {
+  background: var(--blue);
+  color: #fff;
+  box-shadow: 0 10px 28px rgba(58, 99, 200, .35);
+}
+.sm-btn--primary:hover { background: #4b74d8; }
+.sm-btn--ghost {
+  background: rgba(255, 255, 255, .04);
+  border-color: var(--hairline);
+  color: var(--text);
+}
+.sm-btn--ghost:hover { background: rgba(255, 255, 255, .1); }
+.sm-btn--ghost.is-copied {
+  color: #fff;
+  border-color: rgba(58, 99, 200, .7);
+  background: rgba(58, 99, 200, .18);
+}
+
+/* ---- Panel: satellites variant ---- */
+.sm-panel__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+.sm-panel__tab {
+  padding: 8px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--sm-dim);
+  font-family: "Space Grotesk";
+  font-size: 12px;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: color .25s var(--sm-ease), border-color .25s var(--sm-ease),
+    background .25s var(--sm-ease);
+}
+.sm-panel__tab:hover { color: var(--text); }
+.sm-panel__tab.is-active {
+  color: #fff;
+  border-color: rgba(58, 99, 200, .7);
+  background: rgba(58, 99, 200, .16);
+}
+.sm-panel__blurb {
+  margin: 0;
+  min-height: 3.2em;
+  max-width: 44ch;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text);
+}
+
+/* ---- Panel: right-side card (≥768px) ---- */
+@media (min-width: 768px) {
+  .sm-panel {
+    left: auto;
+    right: calc(30px + var(--sm-safe-r));
+    top: 50%;
+    bottom: auto;
+    width: 400px;
+    max-height: 82vh;
+    border-bottom: 1px solid var(--hairline);
+    border-radius: 20px;
+    transform: translate(118%, -50%);
+    box-shadow: 0 34px 90px rgba(0, 0, 0, .55);
+  }
+  .sm-panel.is-open { transform: translate(0, -50%); }
+  .sm-panel__handle { display: none; }
+  .sm-panel__content {
+    max-height: 82vh;
+    padding: 34px 34px 34px;
+  }
+  .sm-panel__close { top: 20px; right: 22px; }
+}
+
+/* ---- Intro: arrival sequence over the 3D hero ---- */
+.sm-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  text-align: center;
+  padding: 0 26px calc(52px + var(--sm-safe-b));
+  background: linear-gradient(
+    to top,
+    rgba(7, 11, 20, .72) 0%,
+    rgba(7, 11, 20, .28) 30%,
+    rgba(7, 11, 20, 0) 56%
+  );
+  opacity: 1;
+  transition: opacity .7s var(--sm-ease);
+}
+/* ID-prefixed on purpose: `#ui > *` (specificity 1-0-0) re-enables pointer
+   events on every overlay child, so a bare `.sm-intro.is-out` (0-2-0) would
+   lose and the faded intro would keep eating the canvas's gestures forever. */
+#ui .sm-intro.is-out { opacity: 0; pointer-events: none; }
+
+.sm-intro__inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  max-width: 640px;
+}
+.sm-intro__wordmark {
+  font-size: 14px;
+  letter-spacing: .5em;
+  padding-left: .5em;
+  color: rgba(255, 255, 255, .72);
+  opacity: 0;
+}
+.sm-intro__line1 {
+  margin: 0;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(28px, 6.6vw, 44px);
+  line-height: 1.1;
+  letter-spacing: -.015em;
+  color: #fff;
+  opacity: 0;
+}
+.sm-intro__line2 {
+  margin: 0;
+  max-width: 30ch;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(14px, 2.6vw, 16.5px);
+  line-height: 1.55;
+  color: var(--sm-dim);
+  opacity: 0;
+}
+.sm-intro__hint {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  margin-top: 24px;
+  opacity: 0;
+}
+/* Content is invisible until play() adds .is-in — the intro must not paint
+   over the hero (or the HUD/panels) until the arrival sequence actually runs. */
+.sm-intro.is-in .sm-intro__wordmark { animation: sm-fade-up 1s var(--sm-ease) .1s forwards; }
+.sm-intro.is-in .sm-intro__line1 { animation: sm-fade-up 1s var(--sm-ease) .35s forwards; }
+.sm-intro.is-in .sm-intro__line2 { animation: sm-fade-up 1s var(--sm-ease) .6s forwards; }
+.sm-intro.is-in .sm-intro__hint { animation: sm-fade-up 1s var(--sm-ease) .95s forwards; }
+.sm-intro__hint-arrow {
+  font-size: 15px;
+  color: rgba(255, 255, 255, .55);
+  animation: sm-drift 2.4s ease-in-out infinite;
+}
+.sm-intro__hint-text {
+  font-size: 10px;
+  letter-spacing: .38em;
+  color: rgba(255, 255, 255, .55);
+}
+
+/* ---- Intro: tilt-permission chip (iOS only, revealed post-enter) ---- */
+.sm-intro__tilt {
+  position: fixed;
+  z-index: 3;
+  left: 50%;
+  bottom: calc(30px + var(--sm-safe-b));
+  transform: translateX(-50%);
+  padding: 10px 18px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--sm-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-family: "Space Grotesk";
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  animation: sm-fade-up .6s var(--sm-ease) forwards;
+}
+
+@keyframes sm-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes sm-drift {
+  0%, 100% { transform: translateY(3px); opacity: .5; }
+  50% { transform: translateY(-3px); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sm-intro.is-in .sm-intro__wordmark,
+  .sm-intro.is-in .sm-intro__line1,
+  .sm-intro.is-in .sm-intro__line2,
+  .sm-intro.is-in .sm-intro__hint,
+  .sm-intro__tilt {
+    animation-duration: .01ms;
+    animation-delay: 0s;
+    opacity: 1;
+  }
+  .sm-intro__hint-arrow { animation: none; }
+  .sm-panel { transition-duration: .01ms; }
+}
+
+/* ============================================================
+   Task 15 — a11y mirror fallback + WebGL context-lost overlay.
+
+   buildMirror() (src/a11y/mirror.ts) renders the site name, manifesto and
+   every station into #mirror UNCONDITIONALLY on every boot — it's real,
+   focusable content for screen readers/crawlers, staying visually hidden
+   behind the clip-path rule near the top of this file. When WebGL creation
+   fails outright, main.ts calls revealMirrorAsFallback(), which adds
+   `.mirror-visible` below: no new markup, just enough styling to read as an
+   elegant static dark page — the same content, laid out properly, with the
+   canvas gone from the equation entirely.
+   ============================================================ */
+#mirror.mirror-visible {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  width: auto;
+  height: auto;
+  overflow-y: auto;
+  clip-path: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 72px 24px calc(96px + var(--sm-safe-b));
+  background: var(--void);
+  color: var(--text);
+  -webkit-overflow-scrolling: touch;
+}
+
+.sm-mirror__intro {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  width: 100%;
+  max-width: 640px;
+  margin-bottom: 48px;
+  text-align: center;
+}
+.sm-mirror__logo {
+  width: 46px;
+  height: auto;
+  opacity: .92;
+}
+.sm-mirror__h1 {
+  margin: 0;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(26px, 6vw, 38px);
+  letter-spacing: .04em;
+  color: #fff;
+}
+.sm-mirror__manifesto {
+  margin: 0;
+  max-width: 46ch;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--sm-dim);
+}
+
+#mirror.mirror-visible .sm-mirror__section {
+  width: 100%;
+  max-width: 640px;
+  padding: 36px 0;
+  border-top: 1px solid var(--hairline);
+}
+#mirror.mirror-visible .sm-mirror__section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.sm-mirror__title {
+  margin: 0 0 10px;
+  font-family: "Space Grotesk";
+  font-weight: 500;
+  font-size: clamp(20px, 3.6vw, 24px);
+  color: #fff;
+}
+.sm-mirror__tagline {
+  margin: 0 0 14px;
+  color: var(--blue);
+}
+.sm-mirror__body {
+  margin: 0 0 18px;
+  max-width: 56ch;
+  font-size: 14.5px;
+  line-height: 1.65;
+  color: var(--text);
+}
+.sm-mirror__list {
+  margin: 0 0 4px;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.sm-mirror__list li {
+  padding: 7px 14px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, .82);
+}
+.sm-mirror__satellites {
+  margin-top: 14px;
+  flex-direction: column;
+  gap: 10px;
+}
+.sm-mirror__satellites li {
+  max-width: 56ch;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-align: left;
+  font-size: 13.5px;
+  line-height: 1.55;
+}
+.sm-mirror__satellites strong { color: #fff; }
+
+.sm-mirror__email {
+  display: inline-block;
+  margin-top: 18px;
+  font-family: "Space Grotesk";
+  font-size: 15px;
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* ---- WebGL context-lost overlay: a small, honest "still here" sign,
+   toggled via [hidden] (see the #ui [hidden] rule above) by the
+   webglcontextlost/restored listeners in main.ts. ---- */
+.sm-context-lost {
+  position: fixed;
+  z-index: 4;
+  top: calc(20px + var(--sm-safe-t));
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 8px 16px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: var(--sm-glass);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  color: var(--text);
+  font-family: "Space Grotesk";
+  font-size: 11px;
+  letter-spacing: .1em;
+}

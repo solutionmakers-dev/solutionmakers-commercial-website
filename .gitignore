@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.DS_Store
+.superpowers/
+e2e/shots/
+e2e/.results/
+playwright-report/
+test-results/
