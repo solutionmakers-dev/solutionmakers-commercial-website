@@ -59,6 +59,26 @@ https://solutionmakers-dev.github.io/solutionmakers-commercial-website/
 5. **French (spec'd as v2)** — copy deck is one file; add a locale switch + `SITE`/`STATIONS` variants.
 6. **Housekeeping** — delete remote feature branch; optionally add a CI e2e job (`pnpm exec playwright install chromium --with-deps` on ubuntu); consider disposing `RoomEnvironment` scene post-PMREM (one-time ~negligible leak, noted in review).
 
+## 7b. Post-launch fix — mobile touch (2026-07-06)
+
+**Reported:** "unusable on mobile, merely navigable on desktop." **True.**
+Root cause: only `#scene` (canvas) had `touch-action: none`. The DOM overlays
+that host GestureControllers — `.sm-intro` (drag-to-enter) and `.sm-panel`
+(swipe-to-close) — were `touch-action: auto`, so a mobile browser read the
+enter-drag as page-scroll and fired `pointercancel` after the first move; the
+24px enter threshold never accumulated and visitors were stuck on the arrival
+screen. Desktop uses wheel/click (touch-action-immune), hence "merely
+navigable." Fix in `src/style.css`: `touch-action:none` on `.sm-intro` and a
+full-width `.sm-panel__handle` grab strip; `pan-y` on `.sm-panel__content` so
+it still scrolls.
+
+**Why the e2e suite missed it (the important lesson):** the mobile `enter()`
+helper did a single 60px `touchMove` — a teleport that crosses the threshold in
+one emit, before any `pointercancel`. Real fingers emit many small moves.
+`enter()` now uses an incremental `touchDrag` helper, and a mobile-only test
+("real finger drags drive entry and sheet dismissal") guards it. When adding
+touch tests, always drive **incremental** moves, never one jump.
+
 ## 8. Working conventions used throughout (keep them)
 
 - TDD for logic modules; smoke tests assert real structure (counts, radii, userData), not no-throw.
