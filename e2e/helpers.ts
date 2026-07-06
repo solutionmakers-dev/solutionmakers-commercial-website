@@ -143,8 +143,36 @@ async function touchEnd(cdp: CDPSession): Promise<void> {
 }
 
 /**
- * Cross the arrival threshold: a wheel (desktop) or a single decisive touch
+ * A real, incremental finger drag: touchStart, `steps` small touchMoves, then
+ * touchEnd. Small increments matter — they reproduce how a browser evaluates
+ * touch-action / scroll intent per move, which a single large jump would not.
+ */
+export async function touchDrag(
+  cdp: CDPSession,
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  steps = 12,
+): Promise<void> {
+  await touchStart(cdp, x0, y0)
+  for (let i = 1; i <= steps; i++) {
+    await touchMove(cdp, x0 + ((x1 - x0) * i) / steps, y0 + ((y1 - y0) * i) / steps)
+  }
+  await touchEnd(cdp)
+}
+
+/**
+ * Cross the arrival threshold: a wheel (desktop) or a real, INCREMENTAL touch
  * drag (mobile) on the intro overlay, then wait for it to fade out.
+ *
+ * The mobile drag MUST be many small moves, not one big jump. A real finger
+ * dispatches a stream of small pointermoves, and if the intro overlay lacks
+ * `touch-action: none` the browser reads that stream as page-scroll intent and
+ * fires pointercancel after the first move — so the 24px enter threshold never
+ * accumulates and arrival is a dead end. A single 60px teleport-move hides that
+ * failure (it crosses the threshold in one emit before any cancel), which is
+ * exactly how the touch-action regression shipped past the old helper.
  */
 export async function enter(ctx: Ctx): Promise<void> {
   const { page, cdp, isMobile, vp } = ctx
@@ -153,9 +181,7 @@ export async function enter(ctx: Ctx): Promise<void> {
   const intro = page.locator('[data-intro]')
   await expect(intro).toHaveClass(/is-in/)
   if (isMobile) {
-    await touchStart(cdp, cx, cy)
-    await touchMove(cdp, cx, cy - 60) // one move well past the 24px enter threshold
-    await touchEnd(cdp)
+    await touchDrag(cdp, cx, cy + 30, cx, cy - 60, 12) // ~90px over 12 small moves
   } else {
     await page.evaluate(() => {
       document

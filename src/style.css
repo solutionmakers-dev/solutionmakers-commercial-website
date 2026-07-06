@@ -202,9 +202,24 @@ html, body {
 .sm-panel.is-open { opacity: 1; transform: translateY(0); }
 
 .sm-panel__handle {
+  /* Full-width grab strip, not just the 4px bar: a downward drag anywhere in
+     the top strip of the sheet must dismiss it. touch-action:none keeps the
+     browser from claiming that drag as a scroll before the GestureController
+     sees it. The visible bar is drawn centred via ::after. */
+  width: 100%;
+  height: 24px;
+  margin: 0;
+  position: relative;
+  touch-action: none;
+}
+.sm-panel__handle::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 12px;
   width: 40px;
   height: 4px;
-  margin: 12px auto 2px;
+  transform: translateX(-50%);
   border-radius: 999px;
   background: rgba(255, 255, 255, .22);
 }
@@ -212,6 +227,9 @@ html, body {
   box-sizing: border-box;
   max-height: calc(62vh - 18px);
   overflow-y: auto;
+  /* Allow vertical scrolling of long content, but block horizontal/other
+     browser gestures that would pointercancel a legit scroll drag. */
+  touch-action: pan-y;
   padding: 12px 24px calc(28px + var(--sm-safe-b));
   padding-left: calc(24px + var(--sm-safe-l));
   padding-right: calc(24px + var(--sm-safe-r));
@@ -401,6 +419,12 @@ html, body {
   position: fixed;
   inset: 0;
   z-index: 2;
+  /* The arrival overlay hosts the "drag to enter" GestureController. Without
+     this, a mobile browser reads the enter-drag as page-scroll intent and fires
+     pointercancel after one move, so the threshold never accumulates and the
+     visitor is stuck on the arrival screen — the canvas has touch-action:none,
+     but this overlay sits on top of it and needs the same. */
+  touch-action: none;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;

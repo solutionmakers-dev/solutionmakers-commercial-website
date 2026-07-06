@@ -14,6 +14,7 @@ import {
   activeDotId,
   state,
   tapPanelControl,
+  touchDrag,
   type Ctx,
 } from './helpers'
 
@@ -206,7 +207,40 @@ test.describe('Solution Makers experience', () => {
     expect(errors).toEqual([])
   })
 
-  // (11) accessibility mirror + inert canvas
+  // (11) touch-action regression guard (mobile only): a real incremental
+  // finger drag on the arrival overlay must enter, and a finger swipe on the
+  // sheet handle must dismiss it. Both require touch-action:none on the
+  // overlay/handle — without it the browser pointercancels the drag as scroll
+  // intent and the site is a dead end on touch devices.
+  test('real finger drags drive entry and sheet dismissal', async ({ page }, info) => {
+    const tag = info.project.name
+    test.skip(tag !== 'mobile', 'touch-only gesture path')
+    const { ctx, errors } = await boot(page, tag)
+    const cx = ctx.vp.width / 2
+
+    // Incremental drag up the middle → must cross the arrival threshold.
+    await touchDrag(ctx.cdp, cx, ctx.vp.height * 0.72, cx, ctx.vp.height * 0.72 - 90, 12)
+    await expect(page.locator('[data-intro]')).toHaveClass(/is-out/)
+    await waitForMode(page, 'travel')
+
+    // Dive a station, then dismiss the sheet with a finger swipe on its handle.
+    await diveStation(ctx, 'ai')
+    await expect(page.locator('.sm-panel.is-open')).toHaveCount(1)
+    // Snap off the cosmetic slide-in: under the slow headless renderer it may
+    // not finish, parking the sheet mid-transition so its box is off-screen and
+    // the swipe would miss (same reason tapPanelControl disables it).
+    await page.addStyleTag({ content: '.sm-panel, .sm-panel * { transition: none !important }' })
+    const box = await page.locator('.sm-panel').boundingBox()
+    if (!box) throw new Error('panel has no box')
+    const hx = box.x + box.width / 2
+    // Finger swipe down the top grab-strip → dismiss.
+    await touchDrag(ctx.cdp, hx, box.y + 8, hx, box.y + 320, 22)
+    await waitForMode(page, 'travel')
+    await expect(page.locator('.sm-panel.is-open')).toHaveCount(0)
+    expect(errors).toEqual([])
+  })
+
+  // (12) accessibility mirror + inert canvas
   test('the accessible mirror carries the full content', async ({ page }, info) => {
     const tag = info.project.name
     const { errors } = await boot(page, tag)
